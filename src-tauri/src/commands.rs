@@ -83,6 +83,29 @@ pub fn read_skill_file(tool_id: String, skill_name: String) -> Result<String, St
     std::fs::read_to_string(&skill_md).map_err(|e| format!("Cannot read {}: {}", skill_md.display(), e))
 }
 
+#[tauri::command]
+pub fn backup_skills(tool_id: String) -> Result<String, String> {
+    let tool = parse_tool(&tool_id)?;
+    let src = resolve_skills_dir(&tool);
+
+    if !src.exists() {
+        return Err(format!("Skills directory does not exist: {}", src.display()));
+    }
+
+    let parent = src.parent().ok_or("Cannot determine parent directory")?;
+    let dir_name = src.file_name()
+        .ok_or("Cannot determine directory name")?
+        .to_string_lossy();
+
+    let date_suffix = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let backup_name = format!("{}-{}", dir_name, date_suffix);
+    let dst = parent.join(&backup_name);
+
+    crate::sync::copy_dir_recursive(&src, &dst)?;
+
+    Ok(dst.to_string_lossy().to_string())
+}
+
 fn parse_tool(tool_id: &str) -> Result<Tool, String> {
     match tool_id {
         "claude-code" => Ok(Tool::ClaudeCode),

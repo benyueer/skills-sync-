@@ -67,7 +67,7 @@ fn find_skill_dirs_recursive(dir: &Path, results: &mut Vec<PathBuf>, depth: u32)
     }
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+pub fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     if dst.exists() {
         std::fs::remove_dir_all(dst).map_err(|e| format!("rm {}: {}", dst.display(), e))?;
     }

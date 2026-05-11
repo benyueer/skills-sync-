@@ -16,6 +16,7 @@ pub fn run() {
             commands::open_skills_dir,
             commands::read_skill_file,
             commands::save_custom_dir,
+            commands::backup_skills,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
