@@ -114,8 +114,14 @@ export function SkillDetail({ skill, onBack }: Props) {
           </pre>
         )}
       </div>
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400">
-        {skill.path}
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => invoke("reveal_path", { path: skill.path })}
+          className="text-xs text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline cursor-pointer"
+          title="Open in file explorer"
+        >
+          {skill.path}
+        </button>
       </div>
     </div>
   );
