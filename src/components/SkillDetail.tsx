@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Skill } from "../types";
+import type { Skill, FileEntry } from "../types";
+import { FileTree } from "./FileTree";
+import { highlightCode } from "../utils/syntaxHighlight";
 
 interface Props {
   skill: Skill;
@@ -14,19 +16,59 @@ const EDITORS = [
   { label: "Choose app...", command: "__pick__" },
 ];
 
+function findFirstFile(entries: FileEntry[]): FileEntry | null {
+  for (const entry of entries) {
+    if (!entry.isDirectory) return entry;
+    if (entry.children) {
+      const found = findFirstFile(entry.children);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 export function SkillDetail({ skill, onBack }: Props) {
+  const [files, setFiles] = useState<FileEntry[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Load file list on mount
   useEffect(() => {
     setLoading(true);
-    invoke<string>("read_skill_file", { toolId: skill.toolId, skillName: skill.name })
+    invoke<FileEntry[]>("list_skill_files", { toolId: skill.toolId, skillName: skill.name })
+      .then((fileList) => {
+        setFiles(fileList);
+        // Auto-select the first non-directory file
+        const firstFile = findFirstFile(fileList);
+        if (firstFile) {
+          setSelectedPath(firstFile.path);
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        // Fallback: load SKILL.md directly
+        invoke<string>("read_skill_file", { toolId: skill.toolId, skillName: skill.name })
+          .then((text) => {
+            setContent(text);
+          })
+          .catch((e) => setContent(`Error: ${e}`))
+          .finally(() => setLoading(false));
+      });
+  }, [skill]);
+
+  // Load file content when selectedPath changes
+  useEffect(() => {
+    if (!selectedPath) return;
+    setLoading(true);
+    invoke<string>("read_file_content", { toolId: skill.toolId, path: selectedPath })
       .then(setContent)
       .catch((e) => setContent(`Error: ${e}`))
       .finally(() => setLoading(false));
-  }, [skill]);
+  }, [selectedPath, skill.toolId]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -105,14 +147,30 @@ export function SkillDetail({ skill, onBack }: Props) {
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-auto p-4">
-        {loading ? (
-          <div className="text-gray-400 text-sm">Loading...</div>
-        ) : (
-          <pre className="text-sm whitespace-pre-wrap font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-            {content}
-          </pre>
+      <div className="flex-1 flex overflow-hidden">
+        {files.length > 0 && (
+          <div className="w-[200px] border-r border-gray-200 dark:border-gray-700 overflow-auto">
+            <FileTree
+              files={files}
+              selectedPath={selectedPath}
+              onSelect={setSelectedPath}
+            />
+          </div>
         )}
+        <div className="flex-1 overflow-auto p-4">
+          {loading ? (
+            <div className="text-gray-400 text-sm">Loading...</div>
+          ) : (
+            <pre
+              className="text-sm whitespace-pre-wrap font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg"
+              dangerouslySetInnerHTML={{
+                __html: selectedPath
+                  ? highlightCode(content, selectedPath)
+                  : content,
+              }}
+            />
+          )}
+        </div>
       </div>
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <button
