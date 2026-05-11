@@ -28,5 +28,5 @@ serde_yaml = "0.9"
 thiserror = "2"
 walkdir = "2"
 chrono = "0.4"
-opener = "0.7"
+opener = { version = "0.7", features = ["reveal"] }
 

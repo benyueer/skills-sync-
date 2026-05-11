@@ -269,3 +269,9 @@ pub fn execute_restore(tool_id: String, backup_path: String) -> Result<Vec<Strin
 
     Ok(actions)
 }
+
+#[tauri::command]
+pub fn reveal_path(path: String) -> Result<(), String> {
+    opener::reveal(&path).map_err(|e| format!("Failed to open path: {}", e))?;
+    Ok(())
+}
