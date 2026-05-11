@@ -14,6 +14,19 @@ export interface AppConfig {
   customSkillsDirs: Record<string, string>;
 }
 
+export interface SkillDiff {
+  name: string;
+  status: string;
+  diff: string;
+}
+
+export interface BackupDiff {
+  backupPath: string;
+  added: string[];
+  deleted: string[];
+  changed: SkillDiff[];
+}
+
 export type ToolId = "claude-code" | "opencode" | "codex" | "hermes";
 
 export interface ToolTab {

@@ -1,4 +1,6 @@
 use crate::{config, skill, skill::Skill, sync, tools::Tool};
+use serde::Serialize;
+use std::collections::HashSet;
 
 fn resolve_skills_dir(tool: &Tool) -> std::path::PathBuf {
     let cfg = config::load();
@@ -114,4 +116,138 @@ fn parse_tool(tool_id: &str) -> Result<Tool, String> {
         "hermes" => Ok(Tool::Hermes),
         _ => Err(format!("Unknown tool: {}", tool_id)),
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillDiff {
+    pub name: String,
+    pub status: String,
+    pub diff: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupDiff {
+    pub backup_path: String,
+    pub added: Vec<String>,
+    pub deleted: Vec<String>,
+    pub changed: Vec<SkillDiff>,
+}
+
+fn compute_diff(current: &str, backup: &str) -> String {
+    let current_lines: Vec<&str> = current.lines().collect();
+    let backup_lines: Vec<&str> = backup.lines().collect();
+
+    let mut result = String::new();
+    let max_len = current_lines.len().max(backup_lines.len());
+
+    for i in 0..max_len {
+        match (current_lines.get(i), backup_lines.get(i)) {
+            (Some(a), Some(b)) if a == b => {
+                result.push_str(&format!(" {}\n", a));
+            }
+            (Some(a), Some(b)) => {
+                result.push_str(&format!("-{}\n", a));
+                result.push_str(&format!("+{}\n", b));
+            }
+            (Some(a), None) => {
+                result.push_str(&format!("-{}\n", a));
+            }
+            (None, Some(b)) => {
+                result.push_str(&format!("+{}\n", b));
+            }
+            (None, None) => {}
+        }
+    }
+
+    result
+}
+
+#[tauri::command]
+pub fn preview_restore(tool_id: String, backup_path: String) -> Result<BackupDiff, String> {
+    let tool = parse_tool(&tool_id)?;
+    let current_dir = resolve_skills_dir(&tool);
+    let backup_dir = std::path::PathBuf::from(&backup_path);
+
+    if !backup_dir.exists() {
+        return Err(format!("Backup directory does not exist: {}", backup_path));
+    }
+
+    let current_skills = crate::skill::discover_skills(&current_dir, tool.id());
+    let backup_skills = crate::skill::discover_skills(&backup_dir, tool.id());
+
+    let current_names: HashSet<String> =
+        current_skills.iter().map(|s| s.name.clone()).collect();
+    let backup_names: HashSet<String> =
+        backup_skills.iter().map(|s| s.name.clone()).collect();
+
+    let mut added: Vec<String> = backup_names.difference(&current_names).cloned().collect();
+    added.sort();
+    let mut deleted: Vec<String> = current_names.difference(&backup_names).cloned().collect();
+    deleted.sort();
+
+    let mut changed = Vec::new();
+    for name in current_names.intersection(&backup_names) {
+        let current_md = current_dir.join(name).join("SKILL.md");
+        let backup_md = backup_dir.join(name).join("SKILL.md");
+
+        let current_content = std::fs::read_to_string(&current_md).unwrap_or_default();
+        let backup_content = std::fs::read_to_string(&backup_md).unwrap_or_default();
+
+        if current_content != backup_content {
+            let diff = compute_diff(&current_content, &backup_content);
+            changed.push(SkillDiff {
+                name: name.clone(),
+                status: "changed".to_string(),
+                diff,
+            });
+        }
+    }
+
+    Ok(BackupDiff {
+        backup_path,
+        added,
+        deleted,
+        changed,
+    })
+}
+
+#[tauri::command]
+pub fn execute_restore(tool_id: String, backup_path: String) -> Result<Vec<String>, String> {
+    let tool = parse_tool(&tool_id)?;
+    let current_dir = resolve_skills_dir(&tool);
+    let backup_dir = std::path::PathBuf::from(&backup_path);
+
+    if !backup_dir.exists() {
+        return Err(format!("Backup directory does not exist: {}", backup_path));
+    }
+
+    let preview = preview_restore(tool_id.clone(), backup_path)?;
+
+    let mut actions = Vec::new();
+
+    // Delete skills not in backup
+    for name in &preview.deleted {
+        let skill_dir = current_dir.join(name);
+        if skill_dir.exists() {
+            std::fs::remove_dir_all(&skill_dir)
+                .map_err(|e| format!("Failed to delete {}: {}", name, e))?;
+            actions.push(format!("deleted: {}", name));
+        }
+    }
+
+    // Copy skills from backup (both new and changed)
+    for name in preview.added.iter().chain(preview.changed.iter().map(|d| &d.name)) {
+        let src = backup_dir.join(name);
+        let dst = current_dir.join(name);
+        crate::sync::copy_dir_recursive(&src, &dst)?;
+        if preview.added.contains(name) {
+            actions.push(format!("added: {}", name));
+        } else {
+            actions.push(format!("updated: {}", name));
+        }
+    }
+
+    Ok(actions)
 }
