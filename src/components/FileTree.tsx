@@ -8,6 +8,13 @@ interface Props {
   level?: number;
 }
 
+interface TreeItemProps {
+  file: FileEntry;
+  selectedPath: string | null;
+  onSelect: (path: string) => void;
+  level?: number;
+}
+
 function getFileIcon(name: string, isDirectory: boolean): string {
   if (isDirectory) return "📁";
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
@@ -28,7 +35,7 @@ function getFileIcon(name: string, isDirectory: boolean): string {
   return icons[ext] || "📄";
 }
 
-function FileTreeItem({ file, selectedPath, onSelect, level = 0 }: Props & { file: FileEntry }) {
+function FileTreeItem({ file, selectedPath, onSelect, level = 0 }: TreeItemProps) {
   const [expanded, setExpanded] = useState(level === 0);
   const isSelected = file.path === selectedPath;
   const hasChildren = file.children && file.children.length > 0;
@@ -76,7 +83,6 @@ export function FileTree({ files, selectedPath, onSelect, level = 0 }: Props) {
         <FileTreeItem
           key={file.path}
           file={file}
-          files={files}
           selectedPath={selectedPath}
           onSelect={onSelect}
           level={level}
