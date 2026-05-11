@@ -294,40 +294,32 @@ pub fn list_skill_files(tool_id: String, skill_name: String) -> Result<Vec<FileE
 #[tauri::command]
 pub fn read_file_content(tool_id: String, path: String) -> Result<String, String> {
     let tool = parse_tool(&tool_id)?;
-    let skills_root = resolve_skills_dir(&tool)
-        .canonicalize()
-        .map_err(|_| format!("Skills directory does not exist for tool: {}", tool_id))?;
+    let skills_root = resolve_skills_dir(&tool);
     let file_path = std::path::PathBuf::from(&path);
 
-    // Canonicalize to prevent ../ traversal
-    let canonical = file_path.canonicalize().map_err(|e| e.to_string())?;
-
-    // Strip \\?\ prefix on Windows for consistent comparison
-    #[cfg(target_os = "windows")]
-    let canonical = {
-        let s = canonical.to_string_lossy();
+    // Normalize path by removing \\?\ prefix on Windows
+    fn normalize_path(p: &std::path::Path) -> String {
+        let s = p.to_string_lossy().to_string();
         if s.starts_with(r"\\?\") {
-            std::path::PathBuf::from(&s[4..])
+            s[4..].to_string()
         } else {
-            canonical
+            s
         }
-    };
-    #[cfg(target_os = "windows")]
-    let skills_root = {
-        let s = skills_root.to_string_lossy();
-        if s.starts_with(r"\\?\") {
-            std::path::PathBuf::from(&s[4..])
-        } else {
-            skills_root
-        }
-    };
-
-    if !canonical.starts_with(&skills_root) {
-        return Err("Access denied: path outside skills directory".to_string());
     }
 
+    // Check if the path is within the skills directory
+    let root_str = normalize_path(&skills_root);
+    let path_str = normalize_path(&file_path);
+
+    if !path_str.starts_with(&root_str) {
+        return Err(format!("Access denied: path outside skills directory. Root: {}, Path: {}", root_str, path_str));
+    }
+
+    // Use the original path for file operations
+    let read_path = std::path::PathBuf::from(&path_str);
+
     // Check file metadata (limit to 1MB)
-    let metadata = std::fs::metadata(&canonical).map_err(|e| e.to_string())?;
+    let metadata = std::fs::metadata(&read_path).map_err(|e| e.to_string())?;
     if !metadata.is_file() {
         return Err(format!("Path is not a file: {}", path));
     }
@@ -336,7 +328,7 @@ pub fn read_file_content(tool_id: String, path: String) -> Result<String, String
     }
 
     // Check if file is binary by reading first 8KB
-    let bytes = std::fs::read(&canonical).map_err(|e| e.to_string())?;
+    let bytes = std::fs::read(&read_path).map_err(|e| e.to_string())?;
     let preview = &bytes[..bytes.len().min(8192)];
     if preview.contains(&0) {
         return Err("Binary file cannot be displayed".to_string());
