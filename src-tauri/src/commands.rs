@@ -65,6 +65,7 @@ fn parse_tool(tool_id: &str) -> Result<Tool, String> {
         "claude-code" => Ok(Tool::ClaudeCode),
         "opencode" => Ok(Tool::OpenCode),
         "codex" => Ok(Tool::Codex),
+        "hermes" => Ok(Tool::Hermes),
         _ => Err(format!("Unknown tool: {}", tool_id)),
     }
 }

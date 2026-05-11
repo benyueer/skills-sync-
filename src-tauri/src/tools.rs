@@ -7,11 +7,12 @@ pub enum Tool {
     ClaudeCode,
     OpenCode,
     Codex,
+    Hermes,
 }
 
 impl Tool {
     pub fn all() -> &'static [Tool] {
-        &[Tool::ClaudeCode, Tool::OpenCode, Tool::Codex]
+        &[Tool::ClaudeCode, Tool::OpenCode, Tool::Codex, Tool::Hermes]
     }
 
     pub fn display_name(&self) -> &'static str {
@@ -19,6 +20,7 @@ impl Tool {
             Tool::ClaudeCode => "Claude Code",
             Tool::OpenCode => "OpenCode",
             Tool::Codex => "Codex",
+            Tool::Hermes => "Hermes",
         }
     }
 
@@ -27,6 +29,7 @@ impl Tool {
             Tool::ClaudeCode => "claude-code",
             Tool::OpenCode => "opencode",
             Tool::Codex => "codex",
+            Tool::Hermes => "hermes",
         }
     }
 
@@ -43,6 +46,7 @@ impl Tool {
             #[cfg(not(target_os = "windows"))]
             Tool::OpenCode => home.join(".config").join("opencode").join("skills"),
             Tool::Codex => home.join(".agents").join("skills"),
+            Tool::Hermes => home.join(".hermes").join("skills"),
         }
     }
 }
