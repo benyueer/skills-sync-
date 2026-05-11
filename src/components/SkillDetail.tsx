@@ -148,7 +148,7 @@ export function SkillDetail({ skill, onBack }: Props) {
         </div>
       </div>
       <div className="flex-1 flex overflow-hidden">
-        {files.length > 0 && (
+        {files.length > 1 && (
           <div className="w-[200px] border-r border-gray-200 dark:border-gray-700 overflow-auto">
             <FileTree
               files={files}
