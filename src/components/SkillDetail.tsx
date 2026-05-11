@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import type { Skill } from "../types";
 
 interface Props {
@@ -19,6 +20,27 @@ export function SkillDetail({ skill, onBack }: Props) {
       .finally(() => setLoading(false));
   }, [skill]);
 
+  const handleEdit = async () => {
+    const appPath = await open({
+      multiple: false,
+      filters: [
+        { name: "Executables", extensions: ["exe", "cmd", "bat", "com"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
+    });
+    if (appPath) {
+      try {
+        await invoke("open_skill_with_app", {
+          toolId: skill.toolId,
+          skillName: skill.name,
+          appPath,
+        });
+      } catch (e) {
+        alert(`Failed to open: ${e}`);
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 p-4 border-b border-gray-200 dark:border-gray-700">
@@ -30,12 +52,18 @@ export function SkillDetail({ skill, onBack }: Props) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <div>
+        <div className="flex-1">
           <h2 className="font-semibold text-gray-900 dark:text-gray-100">{skill.name}</h2>
           {skill.description && (
             <p className="text-sm text-gray-500 dark:text-gray-400">{skill.description}</p>
           )}
         </div>
+        <button
+          onClick={handleEdit}
+          className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Edit
+        </button>
       </div>
       <div className="flex-1 overflow-auto p-4">
         {loading ? (

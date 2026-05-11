@@ -86,6 +86,24 @@ pub fn read_skill_file(tool_id: String, skill_name: String) -> Result<String, St
 }
 
 #[tauri::command]
+pub fn open_skill_with_app(tool_id: String, skill_name: String, app_path: String) -> Result<(), String> {
+    let tool = parse_tool(&tool_id)?;
+    let skill_md = resolve_skills_dir(&tool).join(&skill_name).join("SKILL.md");
+    if !skill_md.exists() {
+        return Err(format!("SKILL.md not found: {}", skill_md.display()));
+    }
+    let mut cmd = std::process::Command::new(&app_path);
+    cmd.arg(&skill_md);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd.spawn().map_err(|e| format!("Failed to launch {}: {}", app_path, e))?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn backup_skills(tool_id: String) -> Result<String, String> {
     let tool = parse_tool(&tool_id)?;
     let src = resolve_skills_dir(&tool);
