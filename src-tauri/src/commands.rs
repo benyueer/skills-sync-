@@ -291,6 +291,34 @@ pub fn list_skill_files(tool_id: String, skill_name: String) -> Result<Vec<FileE
     build_file_tree(&skill_dir, 20)
 }
 
+#[tauri::command]
+pub fn read_file_content(path: String) -> Result<String, String> {
+    let file_path = std::path::PathBuf::from(&path);
+
+    if !file_path.exists() {
+        return Err(format!("File does not exist: {}", path));
+    }
+
+    if !file_path.is_file() {
+        return Err(format!("Path is not a file: {}", path));
+    }
+
+    // Check file size (limit to 1MB)
+    let metadata = std::fs::metadata(&file_path).map_err(|e| e.to_string())?;
+    if metadata.len() > 1_048_576 {
+        return Err("File is too large (>1MB)".to_string());
+    }
+
+    // Check if file is binary by reading first 8KB
+    let bytes = std::fs::read(&file_path).map_err(|e| e.to_string())?;
+    let preview = &bytes[..bytes.len().min(8192)];
+    if preview.contains(&0) {
+        return Err("Binary file cannot be displayed".to_string());
+    }
+
+    String::from_utf8(bytes).map_err(|e| format!("Invalid UTF-8: {}", e))
+}
+
 fn build_file_tree(dir: &std::path::Path, max_depth: u32) -> Result<Vec<FileEntry>, String> {
     if max_depth == 0 {
         return Ok(Vec::new());
