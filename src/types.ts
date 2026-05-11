@@ -11,6 +11,7 @@ export interface AppConfig {
   gitRepoUrl: string;
   lastSync: string | null;
   repoLocalPath: string;
+  customSkillsDirs: Record<string, string>;
 }
 
 export type ToolId = "claude-code" | "opencode" | "codex" | "hermes";

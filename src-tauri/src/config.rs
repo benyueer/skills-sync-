@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -8,6 +9,8 @@ pub struct AppConfig {
     pub last_sync: Option<String>,
     #[serde(default)]
     pub repo_local_path: String,
+    #[serde(default)]
+    pub custom_skills_dirs: HashMap<String, String>,
 }
 
 impl Default for AppConfig {
@@ -16,6 +19,7 @@ impl Default for AppConfig {
             git_repo_url: String::new(),
             last_sync: None,
             repo_local_path: String::new(),
+            custom_skills_dirs: HashMap::new(),
         }
     }
 }

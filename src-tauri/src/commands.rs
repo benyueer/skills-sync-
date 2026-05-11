@@ -1,9 +1,32 @@
 use crate::{config, skill, skill::Skill, sync, tools::Tool};
 
+fn resolve_skills_dir(tool: &Tool) -> std::path::PathBuf {
+    let cfg = config::load();
+    if let Some(custom) = cfg.custom_skills_dirs.get(tool.id()) {
+        let path = std::path::PathBuf::from(custom);
+        if !path.as_os_str().is_empty() {
+            return path;
+        }
+    }
+    tool.skills_dir()
+}
+
+#[tauri::command]
+pub fn save_custom_dir(tool_id: String, path: String) -> Result<(), String> {
+    let mut cfg = config::load();
+    if path.is_empty() {
+        cfg.custom_skills_dirs.remove(&tool_id);
+    } else {
+        cfg.custom_skills_dirs.insert(tool_id, path);
+    }
+    config::save(&cfg)
+}
+
 #[tauri::command]
 pub fn get_skills(tool_id: String) -> Result<Vec<Skill>, String> {
     let tool = parse_tool(&tool_id)?;
-    Ok(skill::discover_skills(&tool.skills_dir(), tool.id()))
+    let dir = resolve_skills_dir(&tool);
+    Ok(skill::discover_skills(&dir, tool.id()))
 }
 
 #[tauri::command]
@@ -45,7 +68,7 @@ pub async fn sync_from_git() -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn open_skills_dir(tool_id: String) -> Result<(), String> {
     let tool = parse_tool(&tool_id)?;
-    let dir = tool.skills_dir();
+    let dir = resolve_skills_dir(&tool);
     if !dir.exists() {
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     }
@@ -56,7 +79,7 @@ pub fn open_skills_dir(tool_id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn read_skill_file(tool_id: String, skill_name: String) -> Result<String, String> {
     let tool = parse_tool(&tool_id)?;
-    let skill_md = tool.skills_dir().join(&skill_name).join("SKILL.md");
+    let skill_md = resolve_skills_dir(&tool).join(&skill_name).join("SKILL.md");
     std::fs::read_to_string(&skill_md).map_err(|e| format!("Cannot read {}: {}", skill_md.display(), e))
 }
 

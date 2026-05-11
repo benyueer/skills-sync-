@@ -44,7 +44,12 @@ export function useConfig() {
     await refresh();
   }, [refresh]);
 
-  return { config, save, refresh };
+  const saveCustomDir = useCallback(async (toolId: string, path: string) => {
+    await invoke("save_custom_dir", { toolId, path });
+    await refresh();
+  }, [refresh]);
+
+  return { config, save, saveCustomDir, refresh };
 }
 
 export function useSync() {
