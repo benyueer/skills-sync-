@@ -22,6 +22,8 @@ pub fn run() {
             commands::execute_restore,
             commands::open_skill_with_app,
             commands::reveal_path,
+            commands::list_skill_files,
+            commands::read_file_content,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
