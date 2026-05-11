@@ -14,6 +14,12 @@ function App() {
   const { skills, loading, error, refresh } = useSkills(activeTab);
   const { config, save } = useConfig();
   const { syncing, syncResult, syncError, sync } = useSync();
+  const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  const toggleDark = () => {
+    setDark((d) => !d);
+    document.documentElement.classList.toggle("dark");
+  };
 
   const handleSync = useCallback(async () => {
     await sync();
@@ -31,9 +37,14 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <header className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-        <h1 className="text-lg font-bold">SkillsSync</h1>
-        <p className="text-xs text-gray-400">Manage AI CLI skills from one place</p>
+      <header className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold">SkillsSync</h1>
+          <p className="text-xs text-gray-400">Manage AI CLI skills from one place</p>
+        </div>
+        <button onClick={toggleDark} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          {dark ? "☀️" : "🌙"}
+        </button>
       </header>
 
       <SettingsPanel
