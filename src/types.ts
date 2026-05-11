@@ -7,6 +7,13 @@ export interface Skill {
   hasReferences: boolean;
 }
 
+export interface FileEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  children?: FileEntry[];
+}
+
 export interface AppConfig {
   gitRepoUrl: string;
   lastSync: string | null;
