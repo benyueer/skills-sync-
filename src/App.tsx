@@ -1,40 +1,67 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { TOOLS } from "./types";
+import type { Skill, ToolId } from "./types";
+import { useSkills, useConfig, useSync } from "./hooks/useSkills";
+import { TabNav } from "./components/TabNav";
+import { SkillList } from "./components/SkillList";
+import { SkillDetail } from "./components/SkillDetail";
+import { SettingsPanel } from "./components/SettingsPanel";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [activeTab, setActiveTab] = useState<ToolId>("claude-code");
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const { skills, loading, error, refresh } = useSkills(activeTab);
+  const { config, save } = useConfig();
+  const { syncing, syncResult, syncError, sync } = useSync();
 
-  async function greet() {
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  const handleSync = useCallback(async () => {
+    await sync();
+    refresh();
+  }, [sync, refresh]);
+
+  const handleOpenDir = useCallback(async (toolId: ToolId) => {
+    await invoke("openSkillsDir", { toolId });
+  }, []);
+
+  const handleTabChange = useCallback((id: ToolId) => {
+    setActiveTab(id);
+    setSelectedSkill(null);
+  }, []);
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      <h1 className="text-3xl font-bold mb-8">Welcome to SkillsSync</h1>
+    <div className="h-screen flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+      <header className="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+        <h1 className="text-lg font-bold">SkillsSync</h1>
+        <p className="text-xs text-gray-400">Manage AI CLI skills from one place</p>
+      </header>
 
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-          className="px-3 py-2 border border-gray-300 rounded-md dark:border-gray-700 dark:bg-gray-800"
-        />
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          Greet
-        </button>
-      </form>
-      <p className="mt-4">{greetMsg}</p>
-    </main>
+      <SettingsPanel
+        config={config}
+        onSave={save}
+        onSync={handleSync}
+        syncing={syncing}
+        syncResult={syncResult}
+        syncError={syncError}
+      />
+
+      <TabNav tools={TOOLS} active={activeTab} onSelect={handleTabChange} />
+
+      <main className="flex-1 overflow-auto">
+        {selectedSkill ? (
+          <SkillDetail skill={selectedSkill} onBack={() => setSelectedSkill(null)} />
+        ) : (
+          <SkillList
+            skills={skills}
+            loading={loading}
+            error={error}
+            toolId={activeTab}
+            onSelect={setSelectedSkill}
+            onOpenDir={handleOpenDir}
+          />
+        )}
+      </main>
+    </div>
   );
 }
 
