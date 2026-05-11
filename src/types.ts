@@ -13,7 +13,7 @@ export interface AppConfig {
   repoLocalPath: string;
 }
 
-export type ToolId = "claude-code" | "opencode" | "codex";
+export type ToolId = "claude-code" | "opencode" | "codex" | "hermes";
 
 export interface ToolTab {
   id: ToolId;
@@ -24,4 +24,5 @@ export const TOOLS: ToolTab[] = [
   { id: "claude-code", label: "Claude Code" },
   { id: "opencode", label: "OpenCode" },
   { id: "codex", label: "Codex" },
+  { id: "hermes", label: "Hermes" },
 ];
