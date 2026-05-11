@@ -53,6 +53,13 @@ pub fn open_skills_dir(tool_id: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn read_skill_file(tool_id: String, skill_name: String) -> Result<String, String> {
+    let tool = parse_tool(&tool_id)?;
+    let skill_md = tool.skills_dir().join(&skill_name).join("SKILL.md");
+    std::fs::read_to_string(&skill_md).map_err(|e| format!("Cannot read {}: {}", skill_md.display(), e))
+}
+
 fn parse_tool(tool_id: &str) -> Result<Tool, String> {
     match tool_id {
         "claude-code" => Ok(Tool::ClaudeCode),
