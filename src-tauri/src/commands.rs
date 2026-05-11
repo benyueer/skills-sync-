@@ -288,34 +288,39 @@ pub fn list_skill_files(tool_id: String, skill_name: String) -> Result<Vec<FileE
         return Err(format!("Skill directory does not exist: {}", skill_dir.display()));
     }
 
-    build_file_tree(&skill_dir)
+    build_file_tree(&skill_dir, 20)
 }
 
-fn build_file_tree(dir: &std::path::Path) -> Result<Vec<FileEntry>, String> {
+fn build_file_tree(dir: &std::path::Path, max_depth: u32) -> Result<Vec<FileEntry>, String> {
+    if max_depth == 0 {
+        return Ok(Vec::new());
+    }
+
     let mut entries = Vec::new();
 
-    if let Ok(read_dir) = std::fs::read_dir(dir) {
-        for entry in read_dir.flatten() {
-            let path = entry.path();
-            let name = path.file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
+    let read_dir = std::fs::read_dir(dir)
+        .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
 
-            let is_directory = path.is_dir();
-            let children = if is_directory {
-                Some(build_file_tree(&path)?)
-            } else {
-                None
-            };
+    for entry in read_dir.flatten() {
+        let path = entry.path();
+        let name = path.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
 
-            entries.push(FileEntry {
-                name,
-                path: path.to_string_lossy().to_string(),
-                is_directory,
-                children,
-            });
-        }
+        let is_directory = path.is_dir();
+        let children = if is_directory {
+            Some(build_file_tree(&path, max_depth - 1)?)
+        } else {
+            None
+        };
+
+        entries.push(FileEntry {
+            name,
+            path: path.to_string_lossy().to_string(),
+            is_directory,
+            children,
+        });
     }
 
     entries.sort_by(|a, b| {
