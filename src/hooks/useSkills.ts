@@ -11,7 +11,7 @@ export function useSkills(toolId: ToolId) {
     setLoading(true);
     setError(null);
     try {
-      const result = await invoke<Skill[]>("getSkills", { toolId });
+      const result = await invoke<Skill[]>("get_skills", { toolId });
       setSkills(result);
     } catch (e) {
       setError(String(e));
@@ -31,7 +31,7 @@ export function useConfig() {
   const [config, setConfig] = useState<AppConfig | null>(null);
 
   const refresh = useCallback(async () => {
-    const result = await invoke<AppConfig>("getConfig");
+    const result = await invoke<AppConfig>("get_config");
     setConfig(result);
   }, []);
 
@@ -40,7 +40,7 @@ export function useConfig() {
   }, [refresh]);
 
   const save = useCallback(async (gitRepoUrl: string) => {
-    await invoke("saveConfig", { gitRepoUrl });
+    await invoke("save_config", { gitRepoUrl });
     await refresh();
   }, [refresh]);
 
@@ -57,7 +57,7 @@ export function useSync() {
     setSyncError(null);
     setSyncResult(null);
     try {
-      const result = await invoke<string[]>("syncFromGit");
+      const result = await invoke<string[]>("sync_from_git");
       setSyncResult(result);
     } catch (e) {
       setSyncError(String(e));

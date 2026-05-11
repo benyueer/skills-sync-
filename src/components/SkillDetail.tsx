@@ -13,7 +13,7 @@ export function SkillDetail({ skill, onBack }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    invoke<string>("readSkillFile", { toolId: skill.toolId, skillName: skill.name })
+    invoke<string>("read_skill_file", { toolId: skill.toolId, skillName: skill.name })
       .then(setContent)
       .catch((e) => setContent(`Error: ${e}`))
       .finally(() => setLoading(false));

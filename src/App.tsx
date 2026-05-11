@@ -27,7 +27,7 @@ function App() {
   }, [sync, refresh]);
 
   const handleOpenDir = useCallback(async (toolId: ToolId) => {
-    await invoke("openSkillsDir", { toolId });
+    await invoke("open_skills_dir", { toolId });
   }, []);
 
   const handleTabChange = useCallback((id: ToolId) => {
