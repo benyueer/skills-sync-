@@ -294,7 +294,9 @@ pub fn list_skill_files(tool_id: String, skill_name: String) -> Result<Vec<FileE
 #[tauri::command]
 pub fn read_file_content(tool_id: String, path: String) -> Result<String, String> {
     let tool = parse_tool(&tool_id)?;
-    let skills_root = resolve_skills_dir(&tool);
+    let skills_root = resolve_skills_dir(&tool)
+        .canonicalize()
+        .map_err(|_| format!("Skills directory does not exist for tool: {}", tool_id))?;
     let file_path = std::path::PathBuf::from(&path);
 
     // Canonicalize to prevent ../ traversal
@@ -303,16 +305,11 @@ pub fn read_file_content(tool_id: String, path: String) -> Result<String, String
         return Err("Access denied: path outside skills directory".to_string());
     }
 
-    if !canonical.exists() {
-        return Err(format!("File does not exist: {}", path));
-    }
-
-    if !canonical.is_file() {
+    // Check file metadata (limit to 1MB)
+    let metadata = std::fs::metadata(&canonical).map_err(|e| e.to_string())?;
+    if !metadata.is_file() {
         return Err(format!("Path is not a file: {}", path));
     }
-
-    // Check file size (limit to 1MB)
-    let metadata = std::fs::metadata(&canonical).map_err(|e| e.to_string())?;
     if metadata.len() > 1_048_576 {
         return Err("File is too large (>1MB)".to_string());
     }
