@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { Skill } from "../types";
@@ -8,9 +8,17 @@ interface Props {
   onBack: () => void;
 }
 
+const EDITORS = [
+  { label: "VS Code", command: "code" },
+  { label: "Notepad", command: "notepad" },
+  { label: "Choose app...", command: "__pick__" },
+];
+
 export function SkillDetail({ skill, onBack }: Props) {
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -20,24 +28,41 @@ export function SkillDetail({ skill, onBack }: Props) {
       .finally(() => setLoading(false));
   }, [skill]);
 
-  const handleEdit = async () => {
-    const appPath = await open({
-      multiple: false,
-      filters: [
-        { name: "Executables", extensions: ["exe", "cmd", "bat", "com"] },
-        { name: "All Files", extensions: ["*"] },
-      ],
-    });
-    if (appPath) {
-      try {
-        await invoke("open_skill_with_app", {
-          toolId: skill.toolId,
-          skillName: skill.name,
-          appPath,
-        });
-      } catch (e) {
-        alert(`Failed to open: ${e}`);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
       }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  const handleOpenWith = async (command: string) => {
+    setMenuOpen(false);
+    let appPath = command;
+
+    if (command === "__pick__") {
+      const selected = await open({
+        multiple: false,
+        filters: [
+          { name: "Executables", extensions: ["exe", "cmd", "bat", "com"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+      if (!selected) return;
+      appPath = selected as string;
+    }
+
+    try {
+      await invoke("open_skill_with_app", {
+        toolId: skill.toolId,
+        skillName: skill.name,
+        appPath,
+      });
+    } catch (e) {
+      alert(`Failed to open: ${e}`);
     }
   };
 
@@ -58,12 +83,27 @@ export function SkillDetail({ skill, onBack }: Props) {
             <p className="text-sm text-gray-500 dark:text-gray-400">{skill.description}</p>
           )}
         </div>
-        <button
-          onClick={handleEdit}
-          className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Edit
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Edit
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
+              {EDITORS.map((editor) => (
+                <button
+                  key={editor.command}
+                  onClick={() => handleOpenWith(editor.command)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                >
+                  {editor.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex-1 overflow-auto p-4">
         {loading ? (
