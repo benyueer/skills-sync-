@@ -270,6 +270,68 @@ pub fn execute_restore(tool_id: String, backup_path: String) -> Result<Vec<Strin
     Ok(actions)
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub is_directory: bool,
+    pub children: Option<Vec<FileEntry>>,
+}
+
+#[tauri::command]
+pub fn list_skill_files(tool_id: String, skill_name: String) -> Result<Vec<FileEntry>, String> {
+    let tool = parse_tool(&tool_id)?;
+    let skill_dir = resolve_skills_dir(&tool).join(&skill_name);
+
+    if !skill_dir.exists() {
+        return Err(format!("Skill directory does not exist: {}", skill_dir.display()));
+    }
+
+    build_file_tree(&skill_dir)
+}
+
+fn build_file_tree(dir: &std::path::Path) -> Result<Vec<FileEntry>, String> {
+    let mut entries = Vec::new();
+
+    if let Ok(read_dir) = std::fs::read_dir(dir) {
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            let name = path.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            let is_directory = path.is_dir();
+            let children = if is_directory {
+                Some(build_file_tree(&path)?)
+            } else {
+                None
+            };
+
+            entries.push(FileEntry {
+                name,
+                path: path.to_string_lossy().to_string(),
+                is_directory,
+                children,
+            });
+        }
+    }
+
+    entries.sort_by(|a, b| {
+        // Directories first, then files
+        if a.is_directory && !b.is_directory {
+            std::cmp::Ordering::Less
+        } else if !a.is_directory && b.is_directory {
+            std::cmp::Ordering::Greater
+        } else {
+            a.name.cmp(&b.name)
+        }
+    });
+
+    Ok(entries)
+}
+
 #[tauri::command]
 pub fn reveal_path(path: String) -> Result<(), String> {
     opener::reveal(&path).map_err(|e| format!("Failed to open path: {}", e))?;
