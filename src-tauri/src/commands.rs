@@ -292,25 +292,33 @@ pub fn list_skill_files(tool_id: String, skill_name: String) -> Result<Vec<FileE
 }
 
 #[tauri::command]
-pub fn read_file_content(path: String) -> Result<String, String> {
+pub fn read_file_content(tool_id: String, path: String) -> Result<String, String> {
+    let tool = parse_tool(&tool_id)?;
+    let skills_root = resolve_skills_dir(&tool);
     let file_path = std::path::PathBuf::from(&path);
 
-    if !file_path.exists() {
+    // Canonicalize to prevent ../ traversal
+    let canonical = file_path.canonicalize().map_err(|e| e.to_string())?;
+    if !canonical.starts_with(&skills_root) {
+        return Err("Access denied: path outside skills directory".to_string());
+    }
+
+    if !canonical.exists() {
         return Err(format!("File does not exist: {}", path));
     }
 
-    if !file_path.is_file() {
+    if !canonical.is_file() {
         return Err(format!("Path is not a file: {}", path));
     }
 
     // Check file size (limit to 1MB)
-    let metadata = std::fs::metadata(&file_path).map_err(|e| e.to_string())?;
+    let metadata = std::fs::metadata(&canonical).map_err(|e| e.to_string())?;
     if metadata.len() > 1_048_576 {
         return Err("File is too large (>1MB)".to_string());
     }
 
     // Check if file is binary by reading first 8KB
-    let bytes = std::fs::read(&file_path).map_err(|e| e.to_string())?;
+    let bytes = std::fs::read(&canonical).map_err(|e| e.to_string())?;
     let preview = &bytes[..bytes.len().min(8192)];
     if preview.contains(&0) {
         return Err("Binary file cannot be displayed".to_string());
