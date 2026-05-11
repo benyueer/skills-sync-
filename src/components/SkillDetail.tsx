@@ -116,8 +116,15 @@ export function SkillDetail({ skill, onBack }: Props) {
       </div>
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <button
-          onClick={() => invoke("reveal_path", { path: skill.path })}
+          onClick={async () => {
+            try {
+              await invoke("reveal_path", { path: skill.path });
+            } catch (e) {
+              alert(`Failed to open path: ${e}`);
+            }
+          }}
           className="text-xs text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline cursor-pointer"
+          aria-label="Reveal skill folder in file explorer"
           title="Open in file explorer"
         >
           {skill.path}
