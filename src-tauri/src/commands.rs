@@ -301,6 +301,27 @@ pub fn read_file_content(tool_id: String, path: String) -> Result<String, String
 
     // Canonicalize to prevent ../ traversal
     let canonical = file_path.canonicalize().map_err(|e| e.to_string())?;
+
+    // Strip \\?\ prefix on Windows for consistent comparison
+    #[cfg(target_os = "windows")]
+    let canonical = {
+        let s = canonical.to_string_lossy();
+        if s.starts_with(r"\\?\") {
+            std::path::PathBuf::from(&s[4..])
+        } else {
+            canonical
+        }
+    };
+    #[cfg(target_os = "windows")]
+    let skills_root = {
+        let s = skills_root.to_string_lossy();
+        if s.starts_with(r"\\?\") {
+            std::path::PathBuf::from(&s[4..])
+        } else {
+            skills_root
+        }
+    };
+
     if !canonical.starts_with(&skills_root) {
         return Err("Access denied: path outside skills directory".to_string());
     }
