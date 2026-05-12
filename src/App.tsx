@@ -5,12 +5,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
 import { TOOLS } from "./types";
 import type { Skill, ToolId } from "./types";
-import { useSkills, useConfig, useSync } from "./hooks/useSkills";
+import { useSkills, useConfig, useSync, useComparedSkills } from "./hooks/useSkills";
 import { TabNav } from "./components/TabNav";
 import { TabToolbar } from "./components/TabToolbar";
 import { SkillList } from "./components/SkillList";
 import { SkillDetail } from "./components/SkillDetail";
-import { SettingsPanel } from "./components/SettingsPanel";
+import { RepoPage } from "./components/RepoPage";
 import { RestoreDialog } from "./components/RestoreDialog";
 
 const DEFAULT_DIRS: Record<ToolId, string> = {
@@ -22,10 +22,12 @@ const DEFAULT_DIRS: Record<ToolId, string> = {
 
 function App() {
   const { config, save, saveCustomDir, saveWindowState, saveDarkMode, saveActiveTab } = useConfig();
-  const [activeTab, setActiveTab] = useState<ToolId>("claude-code");
+  const [activeTab, setActiveTab] = useState<string>("repo");
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
-  const { skills, loading, error, refresh } = useSkills(activeTab);
+  const isToolTab = activeTab !== "repo";
+  const { skills, loading, error, refresh } = useSkills(isToolTab ? activeTab as ToolId : "claude-code");
   const { syncing, syncResult, syncError, sync } = useSync();
+  const { comparedSkills, refresh: refreshCompared } = useComparedSkills(activeTab);
   const [dark, setDark] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<{ toolId: ToolId; backupPath: string } | null>(null);
   const initialized = useRef(false);
@@ -44,8 +46,8 @@ function App() {
     }
 
     // Apply active tab
-    if (config.lastActiveTab && TOOLS.some(t => t.id === config.lastActiveTab)) {
-      setActiveTab(config.lastActiveTab as ToolId);
+    if (config.lastActiveTab && (config.lastActiveTab === "repo" || TOOLS.some(t => t.id === config.lastActiveTab))) {
+      setActiveTab(config.lastActiveTab);
     }
 
     // Apply window size and position
@@ -113,13 +115,14 @@ function App() {
   const handleSync = useCallback(async () => {
     await sync();
     refresh();
-  }, [sync, refresh]);
+    refreshCompared();
+  }, [sync, refresh, refreshCompared]);
 
   const handleOpenDir = useCallback(async (toolId: ToolId) => {
     await invoke("open_skills_dir", { toolId });
   }, []);
 
-  const handleTabChange = useCallback((id: ToolId) => {
+  const handleTabChange = useCallback((id: string) => {
     setActiveTab(id);
     setSelectedSkill(null);
     saveActiveTab(id);
@@ -139,7 +142,8 @@ function App() {
   const handleRestoreConfirm = useCallback(() => {
     setRestoreTarget(null);
     refresh();
-  }, [refresh]);
+    refreshCompared();
+  }, [refresh, refreshCompared]);
 
   const currentCustomDir = config?.customSkillsDirs?.[activeTab] ?? "";
 
@@ -155,26 +159,30 @@ function App() {
         </button>
       </header>
 
-      <SettingsPanel
-        config={config}
-        onSave={save}
-        onSync={handleSync}
-        syncing={syncing}
-        syncResult={syncResult}
-        syncError={syncError}
-      />
-
       <TabNav tools={TOOLS} active={activeTab} onSelect={handleTabChange} />
 
       <main className="flex-1 overflow-auto">
-        {selectedSkill ? (
-          <SkillDetail skill={selectedSkill} onBack={() => setSelectedSkill(null)} />
+        {activeTab === "repo" ? (
+          <RepoPage
+            config={config}
+            onSaveUrl={save}
+            onSync={handleSync}
+            syncing={syncing}
+            onSelectSkill={setSelectedSkill}
+          />
+        ) : selectedSkill ? (
+          <SkillDetail
+            skill={selectedSkill}
+            onBack={() => setSelectedSkill(null)}
+            syncStatus={comparedSkills.find((cs) => cs.name === selectedSkill.name)?.status}
+            repoPath={comparedSkills.find((cs) => cs.name === selectedSkill.name)?.repoPath}
+          />
         ) : (
           <>
             <TabToolbar
-              toolId={activeTab}
+              toolId={activeTab as ToolId}
               customDir={currentCustomDir}
-              defaultDir={DEFAULT_DIRS[activeTab]}
+              defaultDir={DEFAULT_DIRS[activeTab as ToolId]}
               onSaveDir={saveCustomDir}
               onBackup={handleBackup}
               onOpenRestore={handleOpenRestore}
@@ -184,9 +192,10 @@ function App() {
               skills={skills}
               loading={loading}
               error={error}
-              toolId={activeTab}
+              toolId={activeTab as ToolId}
               onSelect={setSelectedSkill}
               onOpenDir={handleOpenDir}
+              comparedSkills={comparedSkills}
             />
           </>
         )}
