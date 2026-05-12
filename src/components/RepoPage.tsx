@@ -4,6 +4,15 @@ import type { AppConfig, Skill, GitChangeMap } from "../types";
 import { useRepoSkills } from "../hooks/useRepoSkills";
 import { SkillCard } from "./SkillCard";
 
+function Spinner() {
+  return (
+    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
 interface Props {
   config: AppConfig | null;
   onSaveUrl: (url: string) => Promise<void>;
@@ -20,6 +29,7 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const [gitOutput, setGitOutput] = useState<string | null>(null);
   const [gitError, setGitError] = useState<string | null>(null);
   const [gitLoading, setGitLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [commitMessage, setCommitMessage] = useState("");
   const [stagedCount, setStagedCount] = useState(0);
   const [unstagedCount, setUnstagedCount] = useState(0);
@@ -109,134 +119,73 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
 
   // ── Workflow handlers ──
 
-  const handlePull = useCallback(async () => {
+  // Helper to run a git action with loading state
+  const runGitAction = useCallback(async (action: string, fn: () => Promise<string>, onSuccess?: (result: string) => void) => {
     setGitLoading(true);
+    setLoadingAction(action);
     setGitOutput(null);
     setGitError(null);
     try {
-      const result = await invoke<string>("git_pull");
-      setGitOutput(result || "Pull completed successfully");
-      refresh();
-    } catch (e) {
-      const msg = String(e);
-      setGitError(msg);
-      // After a failed pull, check for conflicts
-      await refreshStatus();
-    } finally {
-      setGitLoading(false);
-    }
-  }, [refresh, refreshStatus]);
-
-  const handleAdd = useCallback(async () => {
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_add");
-      setGitOutput(result || "Changes staged successfully");
+      const result = await fn();
+      setGitOutput(result);
+      onSuccess?.(result);
     } catch (e) {
       setGitError(String(e));
     } finally {
       setGitLoading(false);
-      await refreshStatus();
+      setLoadingAction(null);
     }
-  }, [refreshStatus]);
+  }, []);
+
+  const handlePull = useCallback(async () => {
+    await runGitAction("Pulling...", () => invoke<string>("git_pull"), () => {
+      refresh();
+    });
+    await refreshStatus();
+  }, [runGitAction, refresh, refreshStatus]);
+
+  const handleAdd = useCallback(async () => {
+    await runGitAction("Staging...", () => invoke<string>("git_add"));
+    await refreshStatus();
+  }, [runGitAction, refreshStatus]);
 
   const handleCommit = useCallback(async () => {
     if (!commitMessage.trim()) return;
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_commit", { message: commitMessage.trim() });
-      setGitOutput(result || "Commit created successfully");
+    await runGitAction("Committing...", () => invoke<string>("git_commit", { message: commitMessage.trim() }), () => {
       setCommitMessage("");
-    } catch (e) {
-      setGitError(String(e));
-    } finally {
-      setGitLoading(false);
-      await refreshStatus();
-    }
-  }, [commitMessage, refreshStatus]);
+    });
+    await refreshStatus();
+  }, [runGitAction, commitMessage, refreshStatus]);
 
   const handlePush = useCallback(async () => {
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_push");
-      setGitOutput(result || "Push completed successfully");
-    } catch (e) {
-      setGitError(String(e));
-    } finally {
-      setGitLoading(false);
-      await refreshStatus();
-    }
-  }, [refreshStatus]);
+    await runGitAction("Pushing...", () => invoke<string>("git_push"));
+    await refreshStatus();
+  }, [runGitAction, refreshStatus]);
 
   // ── Conflict resolution ──
 
   const handleMergeAbort = useCallback(async () => {
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_merge_abort");
-      setGitOutput(result || "Merge aborted");
+    await runGitAction("Aborting...", () => invoke<string>("git_merge_abort"), () => {
       refresh();
-    } catch (e) {
-      setGitError(String(e));
-    } finally {
-      setGitLoading(false);
-      await refreshStatus();
-    }
-  }, [refresh, refreshStatus]);
+    });
+    await refreshStatus();
+  }, [runGitAction, refresh, refreshStatus]);
 
   const handleResolveOurs = useCallback(async () => {
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_resolve_ours");
-      setGitOutput(result || "Resolved: kept our version");
-    } catch (e) {
-      setGitError(String(e));
-    } finally {
-      setGitLoading(false);
-      await refreshStatus();
-    }
-  }, [refreshStatus]);
+    await runGitAction("Resolving...", () => invoke<string>("git_resolve_ours"));
+    await refreshStatus();
+  }, [runGitAction, refreshStatus]);
 
   const handleResolveTheirs = useCallback(async () => {
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_resolve_theirs");
-      setGitOutput(result || "Resolved: kept their version");
-    } catch (e) {
-      setGitError(String(e));
-    } finally {
-      setGitLoading(false);
-      await refreshStatus();
-    }
-  }, [refreshStatus]);
+    await runGitAction("Resolving...", () => invoke<string>("git_resolve_theirs"));
+    await refreshStatus();
+  }, [runGitAction, refreshStatus]);
 
   // ── Utility handlers ──
 
   const handleStatus = useCallback(async () => {
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_status");
-      setGitOutput(result || "Working tree clean");
-    } catch (e) {
-      setGitError(String(e));
-    } finally {
-      setGitLoading(false);
-    }
-  }, []);
+    await runGitAction("Checking...", () => invoke<string>("git_status"));
+  }, [runGitAction]);
 
   const handleSyncToTools = useCallback(async () => {
     await onSync();
@@ -350,9 +299,9 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
             <button
               onClick={handlePull}
               disabled={anyDisabled || !config?.gitRepoUrl || hasConflicts}
-              className="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center gap-1"
             >
-              {gitLoading ? "Loading..." : "Pull"}
+              {loadingAction === "Pulling..." ? <><Spinner /> Pulling...</> : "Pull"}
             </button>
             <span className="text-gray-300 dark:text-gray-600">·</span>
             <button
@@ -365,9 +314,9 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
             <button
               onClick={handleSyncToTools}
               disabled={anyDisabled || syncing || !config?.gitRepoUrl}
-              className="px-3 py-1.5 text-sm rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-sm rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors flex items-center gap-1"
             >
-              {syncing ? "Syncing..." : "Sync to Tools"}
+              {syncing ? <><Spinner /> Syncing...</> : "Sync to Tools"}
             </button>
             <button
               onClick={handleOpenDir}
@@ -388,9 +337,9 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
             <button
               onClick={handleAdd}
               disabled={anyDisabled || unstagedCount === 0 || hasConflicts || !config?.repoLocalPath}
-              className="px-3 py-1.5 text-sm rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-sm rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors flex items-center gap-1"
             >
-              {stagedCount > 0 ? `Add (${unstagedCount})` : "Add"}
+              {loadingAction === "Staging..." ? <><Spinner /> Staging...</> : unstagedCount > 0 ? `Add (${unstagedCount})` : "Add"}
             </button>
             <span className="text-gray-300 dark:text-gray-600">·</span>
             <input
@@ -405,17 +354,17 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
             <button
               onClick={handleCommit}
               disabled={anyDisabled || (stagedCount === 0 && !commitMessage.trim()) || hasConflicts || !config?.repoLocalPath}
-              className="px-3 py-1.5 text-sm rounded bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-sm rounded bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50 transition-colors flex items-center gap-1"
             >
-              {gitLoading ? "..." : stagedCount > 0 ? `Commit (${stagedCount})` : "Commit"}
+              {loadingAction === "Committing..." ? <><Spinner /> Committing...</> : stagedCount > 0 ? `Commit (${stagedCount})` : "Commit"}
             </button>
             <span className="text-gray-300 dark:text-gray-600">·</span>
             <button
               onClick={handlePush}
               disabled={anyDisabled || !config?.repoLocalPath || hasConflicts}
-              className="px-3 py-1.5 text-sm rounded bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-sm rounded bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50 transition-colors flex items-center gap-1"
             >
-              {gitLoading ? "..." : "Push"}
+              {loadingAction === "Pushing..." ? <><Spinner /> Pushing...</> : "Push"}
             </button>
           </div>
         </div>

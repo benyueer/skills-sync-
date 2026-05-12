@@ -76,8 +76,8 @@ pub async fn sync_from_git() -> Result<Vec<String>, String> {
     // Update last sync time
     let mut cfg = config::load();
     cfg.last_sync = Some(
-        chrono::Utc::now()
-            .format("%Y-%m-%d %H:%M:%S UTC")
+        chrono::Local::now()
+            .format("%Y-%m-%d %H:%M:%S")
             .to_string(),
     );
     cfg.repo_local_path = repo_dir.to_string_lossy().to_string();
