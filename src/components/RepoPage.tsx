@@ -13,6 +13,8 @@ interface Props {
 }
 
 export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: Props) {
+  const isConfigured = !!config?.gitRepoUrl;
+  const [editing, setEditing] = useState(!isConfigured);
   const [url, setUrl] = useState(config?.gitRepoUrl ?? "");
   const [saving, setSaving] = useState(false);
   const [gitOutput, setGitOutput] = useState<string | null>(null);
@@ -23,10 +25,22 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSaveUrl(url);
+      if (isConfigured && url !== config?.gitRepoUrl) {
+        await invoke("update_repo_url", { newUrl: url });
+        await onSaveUrl(url);
+      } else {
+        await onSaveUrl(url);
+      }
+      setEditing(false);
+      refresh();
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    setUrl(config?.gitRepoUrl ?? "");
+    setEditing(false);
   };
 
   const handlePull = useCallback(async () => {
@@ -80,45 +94,75 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              disabled={!editing}
               placeholder="https://github.com/user/skills-repo.git"
-              className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                editing
+                  ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+              }`}
             />
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || url === config?.gitRepoUrl}
-            className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
+          {editing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={saving || !url || url === config?.gitRepoUrl}
+                className="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+              {isConfigured && (
+                <button
+                  onClick={handleCancel}
+                  className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            >
+              Edit
+            </button>
+          )}
         </div>
+
+        {editing && isConfigured && url !== config?.gitRepoUrl && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+            更改地址会删除已有仓库
+          </p>
+        )}
 
         {/* Git operation buttons */}
         <div className="flex items-center gap-2 mt-3">
           <button
             onClick={handlePull}
-            disabled={gitLoading || !config?.gitRepoUrl}
+            disabled={gitLoading || !config?.gitRepoUrl || editing}
             className="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors"
           >
             {gitLoading ? "Loading..." : "Pull"}
           </button>
           <button
             onClick={handleStatus}
-            disabled={gitLoading || !config?.repoLocalPath}
+            disabled={gitLoading || !config?.repoLocalPath || editing}
             className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
           >
             Status
           </button>
           <button
             onClick={handleSyncToTools}
-            disabled={syncing || !config?.gitRepoUrl}
+            disabled={syncing || !config?.gitRepoUrl || editing}
             className="px-3 py-1.5 text-sm rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
           >
             {syncing ? "Syncing..." : "Sync to Tools"}
           </button>
           <button
             onClick={handleOpenDir}
-            disabled={!config?.repoLocalPath}
+            disabled={!config?.repoLocalPath || editing}
             className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
           >
             Open Dir

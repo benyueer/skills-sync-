@@ -44,6 +44,25 @@ pub fn save_config(git_repo_url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn update_repo_url(new_url: String) -> Result<(), String> {
+    let mut cfg = config::load();
+
+    // Delete old repo directory if it exists and URL is changing
+    if cfg.git_repo_url != new_url && !cfg.repo_local_path.is_empty() {
+        let old_path = std::path::PathBuf::from(&cfg.repo_local_path);
+        if old_path.exists() {
+            std::fs::remove_dir_all(&old_path)
+                .map_err(|e| format!("Failed to delete old repo: {}", e))?;
+        }
+        cfg.repo_local_path.clear();
+        cfg.last_sync = None;
+    }
+
+    cfg.git_repo_url = new_url;
+    config::save(&cfg)
+}
+
+#[tauri::command]
 pub async fn sync_from_git() -> Result<Vec<String>, String> {
     let cfg = config::load();
     if cfg.git_repo_url.is_empty() {
