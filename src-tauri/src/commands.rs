@@ -419,6 +419,46 @@ pub fn git_push() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn git_add() -> Result<String, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    sync::git_add(&repo_dir)
+}
+
+#[tauri::command]
+pub fn git_merge_abort() -> Result<String, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    sync::git_merge_abort(&repo_dir)
+}
+
+#[tauri::command]
+pub fn git_resolve_ours() -> Result<String, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    sync::git_resolve_ours(&repo_dir)
+}
+
+#[tauri::command]
+pub fn git_resolve_theirs() -> Result<String, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    sync::git_resolve_theirs(&repo_dir)
+}
+
+#[tauri::command]
 pub fn get_repo_skills() -> Result<Vec<crate::skill::Skill>, String> {
     let cfg = config::load();
     if cfg.repo_local_path.is_empty() {

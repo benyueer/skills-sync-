@@ -21,6 +21,10 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const [gitError, setGitError] = useState<string | null>(null);
   const [gitLoading, setGitLoading] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
+  const [stagedCount, setStagedCount] = useState(0);
+  const [unstagedCount, setUnstagedCount] = useState(0);
+  const [hasConflicts, setHasConflicts] = useState(false);
+  const [conflictedFiles, setConflictedFiles] = useState<string[]>([]);
   const { skills, loading, error, refresh } = useRepoSkills(config?.repoLocalPath ?? "");
   const [gitChanges, setGitChanges] = useState<GitChangeMap>({});
 
@@ -29,15 +33,52 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
       const changes = await invoke<GitChangeMap>("get_repo_git_changes");
       setGitChanges(changes);
     } catch {
-      // silently ignore — git status is best-effort
+      // silently ignore
     }
   }, []);
 
+  // Parse git status for staged count, unstaged count, and conflicts
+  const refreshStatus = useCallback(async () => {
+    try {
+      const output = await invoke<string>("git_status");
+      let staged = 0;
+      let unstaged = 0;
+      const conflicts: string[] = [];
+
+      for (const line of output.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.length < 3) continue;
+        const x = trimmed[0]; // index (staged)
+        const y = trimmed[1]; // worktree (unstaged)
+
+        // Conflict states: UU, AA, DD, AU, UA, DU, UD
+        if ((x === "U" || y === "U") || (x === "A" && y === "A") || (x === "D" && y === "D")) {
+          conflicts.push(trimmed.slice(3).trim());
+          continue;
+        }
+
+        if (x !== " " && x !== "?") staged++;
+        if (y !== " " && y !== "?") unstaged++;
+      }
+
+      setStagedCount(staged);
+      setUnstagedCount(unstaged);
+      setConflictedFiles(conflicts);
+      setHasConflicts(conflicts.length > 0);
+    } catch {
+      setStagedCount(0);
+      setUnstagedCount(0);
+      setHasConflicts(false);
+      setConflictedFiles([]);
+    }
+    fetchGitChanges();
+  }, [fetchGitChanges]);
+
   useEffect(() => {
     if (config?.repoLocalPath) {
-      fetchGitChanges();
+      refreshStatus();
     }
-  }, [config?.repoLocalPath, fetchGitChanges]);
+  }, [config?.repoLocalPath, refreshStatus]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -60,6 +101,8 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
     setEditing(false);
   };
 
+  // ── Workflow handlers ──
+
   const handlePull = useCallback(async () => {
     setGitLoading(true);
     setGitOutput(null);
@@ -68,13 +111,112 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
       const result = await invoke<string>("git_pull");
       setGitOutput(result || "Pull completed successfully");
       refresh();
-      fetchGitChanges();
+    } catch (e) {
+      const msg = String(e);
+      setGitError(msg);
+      // After a failed pull, check for conflicts
+      await refreshStatus();
+    } finally {
+      setGitLoading(false);
+    }
+  }, [refresh, refreshStatus]);
+
+  const handleAdd = useCallback(async () => {
+    setGitLoading(true);
+    setGitOutput(null);
+    setGitError(null);
+    try {
+      const result = await invoke<string>("git_add");
+      setGitOutput(result || "Changes staged successfully");
     } catch (e) {
       setGitError(String(e));
     } finally {
       setGitLoading(false);
+      await refreshStatus();
     }
-  }, [refresh, fetchGitChanges]);
+  }, [refreshStatus]);
+
+  const handleCommit = useCallback(async () => {
+    if (!commitMessage.trim()) return;
+    setGitLoading(true);
+    setGitOutput(null);
+    setGitError(null);
+    try {
+      const result = await invoke<string>("git_commit", { message: commitMessage.trim() });
+      setGitOutput(result || "Commit created successfully");
+      setCommitMessage("");
+    } catch (e) {
+      setGitError(String(e));
+    } finally {
+      setGitLoading(false);
+      await refreshStatus();
+    }
+  }, [commitMessage, refreshStatus]);
+
+  const handlePush = useCallback(async () => {
+    setGitLoading(true);
+    setGitOutput(null);
+    setGitError(null);
+    try {
+      const result = await invoke<string>("git_push");
+      setGitOutput(result || "Push completed successfully");
+    } catch (e) {
+      setGitError(String(e));
+    } finally {
+      setGitLoading(false);
+      await refreshStatus();
+    }
+  }, [refreshStatus]);
+
+  // ── Conflict resolution ──
+
+  const handleMergeAbort = useCallback(async () => {
+    setGitLoading(true);
+    setGitOutput(null);
+    setGitError(null);
+    try {
+      const result = await invoke<string>("git_merge_abort");
+      setGitOutput(result || "Merge aborted");
+      refresh();
+    } catch (e) {
+      setGitError(String(e));
+    } finally {
+      setGitLoading(false);
+      await refreshStatus();
+    }
+  }, [refresh, refreshStatus]);
+
+  const handleResolveOurs = useCallback(async () => {
+    setGitLoading(true);
+    setGitOutput(null);
+    setGitError(null);
+    try {
+      const result = await invoke<string>("git_resolve_ours");
+      setGitOutput(result || "Resolved: kept our version");
+    } catch (e) {
+      setGitError(String(e));
+    } finally {
+      setGitLoading(false);
+      await refreshStatus();
+    }
+  }, [refreshStatus]);
+
+  const handleResolveTheirs = useCallback(async () => {
+    setGitLoading(true);
+    setGitOutput(null);
+    setGitError(null);
+    try {
+      const result = await invoke<string>("git_resolve_theirs");
+      setGitOutput(result || "Resolved: kept their version");
+    } catch (e) {
+      setGitError(String(e));
+    } finally {
+      setGitLoading(false);
+      await refreshStatus();
+    }
+  }, [refreshStatus]);
+
+  // ── Utility handlers ──
 
   const handleStatus = useCallback(async () => {
     setGitLoading(true);
@@ -93,43 +235,14 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const handleSyncToTools = useCallback(async () => {
     await onSync();
     refresh();
-    fetchGitChanges();
-  }, [onSync, refresh, fetchGitChanges]);
+    refreshStatus();
+  }, [onSync, refresh, refreshStatus]);
 
   const handleOpenDir = useCallback(async () => {
     await invoke("open_repo_dir");
   }, []);
 
-  const handleCommit = useCallback(async () => {
-    if (!commitMessage.trim()) return;
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_commit", { message: commitMessage.trim() });
-      setGitOutput(result || "Commit created successfully");
-      setCommitMessage("");
-      fetchGitChanges();
-    } catch (e) {
-      setGitError(String(e));
-    } finally {
-      setGitLoading(false);
-    }
-  }, [commitMessage, fetchGitChanges]);
-
-  const handlePush = useCallback(async () => {
-    setGitLoading(true);
-    setGitOutput(null);
-    setGitError(null);
-    try {
-      const result = await invoke<string>("git_push");
-      setGitOutput(result || "Push completed successfully");
-    } catch (e) {
-      setGitError(String(e));
-    } finally {
-      setGitLoading(false);
-    }
-  }, []);
+  const anyDisabled = gitLoading || editing;
 
   return (
     <div className="flex flex-col h-full">
@@ -187,66 +300,118 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
           </p>
         )}
 
-        {/* Git operation buttons */}
-        <div className="flex items-center gap-2 mt-3">
-          <button
-            onClick={handlePull}
-            disabled={gitLoading || !config?.gitRepoUrl || editing}
-            className="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors"
-          >
-            {gitLoading ? "Loading..." : "Pull"}
-          </button>
-          <button
-            onClick={handleStatus}
-            disabled={gitLoading || !config?.repoLocalPath || editing}
-            className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-          >
-            Status
-          </button>
-          <button
-            onClick={handleSyncToTools}
-            disabled={syncing || !config?.gitRepoUrl || editing}
-            className="px-3 py-1.5 text-sm rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
-          >
-            {syncing ? "Syncing..." : "Sync to Tools"}
-          </button>
-          <button
-            onClick={handleOpenDir}
-            disabled={!config?.repoLocalPath || editing}
-            className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-          >
-            Open Dir
-          </button>
-          <div className="flex items-center gap-1 ml-2">
+        {/* Conflict panel */}
+        {hasConflicts && (
+          <div className="mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <p className="text-sm font-medium text-red-700 dark:text-red-300 mb-2">
+              Merge conflicts detected in {conflictedFiles.length} file{conflictedFiles.length !== 1 ? "s" : ""}:
+            </p>
+            <ul className="text-xs text-red-600 dark:text-red-400 mb-3 space-y-0.5">
+              {conflictedFiles.map((f) => (
+                <li key={f} className="font-mono">{f}</li>
+              ))}
+            </ul>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleMergeAbort}
+                disabled={anyDisabled}
+                className="px-3 py-1 text-xs rounded bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+              >
+                Abort Merge
+              </button>
+              <button
+                onClick={handleResolveOurs}
+                disabled={anyDisabled}
+                className="px-3 py-1 text-xs rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+              >
+                Keep Ours
+              </button>
+              <button
+                onClick={handleResolveTheirs}
+                disabled={anyDisabled}
+                className="px-3 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              >
+                Keep Theirs
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Git workflow buttons */}
+        <div className="mt-3 space-y-2">
+          {/* Row 1: Pull · Status, Sync, Open Dir */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePull}
+              disabled={anyDisabled || !config?.gitRepoUrl || hasConflicts}
+              className="px-3 py-1.5 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            >
+              {gitLoading ? "Loading..." : "Pull"}
+            </button>
+            <span className="text-gray-300 dark:text-gray-600">·</span>
+            <button
+              onClick={handleStatus}
+              disabled={anyDisabled || !config?.repoLocalPath}
+              className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+            >
+              Status
+            </button>
+            <button
+              onClick={handleSyncToTools}
+              disabled={anyDisabled || syncing || !config?.gitRepoUrl}
+              className="px-3 py-1.5 text-sm rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+            >
+              {syncing ? "Syncing..." : "Sync to Tools"}
+            </button>
+            <button
+              onClick={handleOpenDir}
+              disabled={anyDisabled || !config?.repoLocalPath}
+              className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+            >
+              Open Dir
+            </button>
+            {config?.lastSync && (
+              <span className="text-xs text-gray-400 ml-auto">
+                Last sync: {config.lastSync}
+              </span>
+            )}
+          </div>
+
+          {/* Row 2: Add · Commit message + Commit · Push */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAdd}
+              disabled={anyDisabled || unstagedCount === 0 || hasConflicts || !config?.repoLocalPath}
+              className="px-3 py-1.5 text-sm rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            >
+              {stagedCount > 0 ? `Add (${unstagedCount})` : "Add"}
+            </button>
+            <span className="text-gray-300 dark:text-gray-600">·</span>
             <input
               type="text"
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCommit()}
               placeholder="Commit message"
-              disabled={gitLoading || !config?.repoLocalPath || editing}
-              className="px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-40 disabled:opacity-50"
+              disabled={anyDisabled || hasConflicts || !config?.repoLocalPath}
+              className="flex-1 px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             />
             <button
               onClick={handleCommit}
-              disabled={gitLoading || !commitMessage.trim() || !config?.repoLocalPath || editing}
+              disabled={anyDisabled || (stagedCount === 0 && !commitMessage.trim()) || hasConflicts || !config?.repoLocalPath}
               className="px-3 py-1.5 text-sm rounded bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50 transition-colors"
             >
-              {gitLoading ? "..." : "Commit"}
+              {gitLoading ? "..." : stagedCount > 0 ? `Commit (${stagedCount})` : "Commit"}
+            </button>
+            <span className="text-gray-300 dark:text-gray-600">·</span>
+            <button
+              onClick={handlePush}
+              disabled={anyDisabled || !config?.repoLocalPath || hasConflicts}
+              className="px-3 py-1.5 text-sm rounded bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50 transition-colors"
+            >
+              {gitLoading ? "..." : "Push"}
             </button>
           </div>
-          <button
-            onClick={handlePush}
-            disabled={gitLoading || !config?.repoLocalPath || editing}
-            className="px-3 py-1.5 text-sm rounded bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50 transition-colors"
-          >
-            {gitLoading ? "..." : "Push"}
-          </button>
-          {config?.lastSync && (
-            <span className="text-xs text-gray-400 ml-auto">
-              Last sync: {config.lastSync}
-            </span>
-          )}
         </div>
 
         {/* Git output */}
@@ -278,7 +443,6 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
         ) : (
           <div className="grid gap-2">
             {skills.map((skill) => {
-              // Compute skill's relative path within the repo
               const repoPath = config?.repoLocalPath ?? "";
               let relSkillPath = skill.path;
               if (repoPath && skill.path.startsWith(repoPath)) {

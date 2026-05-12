@@ -136,13 +136,48 @@ pub fn git_pull(repo_dir: &Path) -> Result<String, String> {
     run_git(repo_dir, &["pull", "--ff-only"])
 }
 
-/// Stage all changes and commit with the given message.
+/// Stage all changes (git add -A).
+pub fn git_add(repo_dir: &Path) -> Result<String, String> {
+    if !repo_dir.join(".git").exists() {
+        return Err("Not a git repository".to_string());
+    }
+    run_git(repo_dir, &["add", "-A"])
+}
+
+/// Commit staged changes with the given message.
 pub fn git_commit(repo_dir: &Path, message: &str) -> Result<String, String> {
     if !repo_dir.join(".git").exists() {
         return Err("Not a git repository".to_string());
     }
-    run_git(repo_dir, &["add", "-A"])?;
     run_git(repo_dir, &["commit", "-m", message])
+}
+
+/// Abort an in-progress merge.
+pub fn git_merge_abort(repo_dir: &Path) -> Result<String, String> {
+    if !repo_dir.join(".git").exists() {
+        return Err("Not a git repository".to_string());
+    }
+    run_git(repo_dir, &["merge", "--abort"])
+}
+
+/// Resolve conflicts by keeping our version.
+pub fn git_resolve_ours(repo_dir: &Path) -> Result<String, String> {
+    if !repo_dir.join(".git").exists() {
+        return Err("Not a git repository".to_string());
+    }
+    run_git(repo_dir, &["checkout", "--ours", "."])?;
+    run_git(repo_dir, &["add", "-A"])?;
+    Ok("Resolved: kept our version".to_string())
+}
+
+/// Resolve conflicts by keeping their version.
+pub fn git_resolve_theirs(repo_dir: &Path) -> Result<String, String> {
+    if !repo_dir.join(".git").exists() {
+        return Err("Not a git repository".to_string());
+    }
+    run_git(repo_dir, &["checkout", "--theirs", "."])?;
+    run_git(repo_dir, &["add", "-A"])?;
+    Ok("Resolved: kept their version".to_string())
 }
 
 /// Push committed changes to the remote.
