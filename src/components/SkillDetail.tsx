@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Skill, FileEntry, SyncStatus } from "../types";
+import type { Skill, FileEntry, SyncStatus, FileDiff } from "../types";
 import { FileTree } from "./FileTree";
+import { DiffViewer } from "./DiffViewer";
 import { highlightCode } from "../utils/syntaxHighlight";
 
 interface Props {
@@ -43,7 +44,7 @@ export function SkillDetail({ skill, onBack, syncStatus, repoPath }: Props) {
   const [loading, setLoading] = useState(true);
   // Diff view state
   const [showDiff, setShowDiff] = useState(false);
-  const [diffContent, setDiffContent] = useState<string | null>(null);
+  const [diffFiles, setDiffFiles] = useState<FileDiff[]>([]);
   const [diffLoading, setDiffLoading] = useState(false);
 
   // Load file list on mount
@@ -99,27 +100,23 @@ export function SkillDetail({ skill, onBack, syncStatus, repoPath }: Props) {
     }
   }, [selectedPath, skill.toolId, syncStatus]);
 
-  // Load diff content when toggled — calls backend get_skill_diff
+  // Load diff content when toggled — calls backend get_skill_diff_content
   useEffect(() => {
     if (!showDiff || !repoPath) {
-      setDiffContent(null);
+      setDiffFiles([]);
       return;
     }
     setDiffLoading(true);
-    invoke<Record<string, string>>("get_skill_diff", {
+    invoke<FileDiff[]>("get_skill_diff_content", {
       toolId: skill.toolId,
       skillName: skill.name,
       repoPath,
     })
-      .then((diffs) => {
-        const parts: string[] = [];
-        for (const [file, diff] of Object.entries(diffs)) {
-          parts.push(`--- ${file} ---`);
-          parts.push(diff);
-        }
-        setDiffContent(parts.length > 0 ? parts.join("\n") : "No differences found.");
+      .then(setDiffFiles)
+      .catch((e) => {
+        console.error("Failed to load diff:", e);
+        setDiffFiles([]);
       })
-      .catch((e) => setDiffContent(`Error loading diff: ${e}`))
       .finally(() => setDiffLoading(false));
   }, [showDiff, repoPath, skill.name, skill.toolId]);
 
@@ -198,22 +195,7 @@ export function SkillDetail({ skill, onBack, syncStatus, repoPath }: Props) {
               {diffLoading ? (
                 <div className="text-gray-400 text-sm">Computing diff...</div>
               ) : (
-                <pre className="text-sm whitespace-pre-wrap font-mono bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                  {(diffContent ?? "").split("\n").map((line, i) => (
-                    <div
-                      key={i}
-                      className={
-                        line.startsWith("+")
-                          ? "text-green-600 dark:text-green-400"
-                          : line.startsWith("-")
-                          ? "text-red-600 dark:text-red-400"
-                          : "text-gray-500"
-                      }
-                    >
-                      {line}
-                    </div>
-                  ))}
-                </pre>
+                <DiffViewer files={diffFiles} />
               )}
             </div>
           ) : (
