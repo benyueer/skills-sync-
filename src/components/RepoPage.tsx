@@ -20,6 +20,7 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const [gitOutput, setGitOutput] = useState<string | null>(null);
   const [gitError, setGitError] = useState<string | null>(null);
   const [gitLoading, setGitLoading] = useState(false);
+  const [commitMessage, setCommitMessage] = useState("");
   const { skills, loading, error, refresh } = useRepoSkills(config?.repoLocalPath ?? "");
   const [gitChanges, setGitChanges] = useState<GitChangeMap>({});
 
@@ -97,6 +98,37 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
 
   const handleOpenDir = useCallback(async () => {
     await invoke("open_repo_dir");
+  }, []);
+
+  const handleCommit = useCallback(async () => {
+    if (!commitMessage.trim()) return;
+    setGitLoading(true);
+    setGitOutput(null);
+    setGitError(null);
+    try {
+      const result = await invoke<string>("git_commit", { message: commitMessage.trim() });
+      setGitOutput(result || "Commit created successfully");
+      setCommitMessage("");
+      fetchGitChanges();
+    } catch (e) {
+      setGitError(String(e));
+    } finally {
+      setGitLoading(false);
+    }
+  }, [commitMessage, fetchGitChanges]);
+
+  const handlePush = useCallback(async () => {
+    setGitLoading(true);
+    setGitOutput(null);
+    setGitError(null);
+    try {
+      const result = await invoke<string>("git_push");
+      setGitOutput(result || "Push completed successfully");
+    } catch (e) {
+      setGitError(String(e));
+    } finally {
+      setGitLoading(false);
+    }
   }, []);
 
   return (
@@ -184,6 +216,31 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
             className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
           >
             Open Dir
+          </button>
+          <div className="flex items-center gap-1 ml-2">
+            <input
+              type="text"
+              value={commitMessage}
+              onChange={(e) => setCommitMessage(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCommit()}
+              placeholder="Commit message"
+              disabled={gitLoading || !config?.repoLocalPath || editing}
+              className="px-2 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-40 disabled:opacity-50"
+            />
+            <button
+              onClick={handleCommit}
+              disabled={gitLoading || !commitMessage.trim() || !config?.repoLocalPath || editing}
+              className="px-3 py-1.5 text-sm rounded bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+            >
+              {gitLoading ? "..." : "Commit"}
+            </button>
+          </div>
+          <button
+            onClick={handlePush}
+            disabled={gitLoading || !config?.repoLocalPath || editing}
+            className="px-3 py-1.5 text-sm rounded bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50 transition-colors"
+          >
+            {gitLoading ? "..." : "Push"}
           </button>
           {config?.lastSync && (
             <span className="text-xs text-gray-400 ml-auto">

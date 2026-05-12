@@ -34,6 +34,8 @@ pub fn run() {
             commands::read_repo_file_content,
             commands::git_status,
             commands::git_pull,
+            commands::git_commit,
+            commands::git_push,
             commands::get_repo_skills,
             commands::open_repo_dir,
             commands::update_repo_url,

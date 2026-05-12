@@ -399,6 +399,26 @@ pub fn git_pull() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn git_commit(message: String) -> Result<String, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    sync::git_commit(&repo_dir, &message)
+}
+
+#[tauri::command]
+pub fn git_push() -> Result<String, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    sync::git_push(&repo_dir)
+}
+
+#[tauri::command]
 pub fn get_repo_skills() -> Result<Vec<crate::skill::Skill>, String> {
     let cfg = config::load();
     if cfg.repo_local_path.is_empty() {

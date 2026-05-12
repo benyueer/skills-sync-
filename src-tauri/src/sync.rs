@@ -136,6 +136,23 @@ pub fn git_pull(repo_dir: &Path) -> Result<String, String> {
     run_git(repo_dir, &["pull", "--ff-only"])
 }
 
+/// Stage all changes and commit with the given message.
+pub fn git_commit(repo_dir: &Path, message: &str) -> Result<String, String> {
+    if !repo_dir.join(".git").exists() {
+        return Err("Not a git repository".to_string());
+    }
+    run_git(repo_dir, &["add", "-A"])?;
+    run_git(repo_dir, &["commit", "-m", message])
+}
+
+/// Push committed changes to the remote.
+pub fn git_push(repo_dir: &Path) -> Result<String, String> {
+    if !repo_dir.join(".git").exists() {
+        return Err("Not a git repository".to_string());
+    }
+    run_git(repo_dir, &["push"])
+}
+
 /// Collect all files in a skill directory as relative_path -> content bytes.
 fn collect_skill_files(skill_dir: &std::path::Path) -> BTreeMap<String, Vec<u8>> {
     let mut files = BTreeMap::new();
