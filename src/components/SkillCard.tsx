@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import type { Skill, SyncStatus } from "../types";
 
 interface Props {
@@ -24,90 +25,154 @@ const STATUS_LABELS: Record<SyncStatus, string> = {
   different: "Modified",
 };
 
-export function SkillCard({ skill, onClick, syncStatus, onDelete, onSyncToRepo, onSyncToAgent, onRestoreFromRepo }: Props) {
-  const statusStyle = syncStatus ? STATUS_STYLES[syncStatus] : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700";
+type ActionKey = "delete" | "syncToRepo" | "syncToAgent" | "restoreFromRepo";
 
-  const handleAction = (e: React.MouseEvent, action?: () => void) => {
-    e.stopPropagation();
-    action?.();
+interface MenuItem {
+  key: ActionKey;
+  label: string;
+  confirmLabel: string;
+  danger?: boolean;
+}
+
+function getMenuItems(syncStatus: SyncStatus | undefined, props: Props): MenuItem[] {
+  const items: MenuItem[] = [];
+  if (!syncStatus) return items;
+
+  if ((syncStatus === "identical" || syncStatus === "agent-only" || syncStatus === "different") && props.onDelete) {
+    items.push({ key: "delete", label: "Delete from Agent", confirmLabel: "Confirm delete?", danger: true });
+  }
+  if (syncStatus === "agent-only" && props.onSyncToRepo) {
+    items.push({ key: "syncToRepo", label: "Sync to Repo", confirmLabel: "Confirm sync to repo?" });
+  }
+  if (syncStatus === "repo-only" && props.onSyncToAgent) {
+    items.push({ key: "syncToAgent", label: "Sync to Agent", confirmLabel: "Confirm sync to agent?" });
+  }
+  if (syncStatus === "different") {
+    if (props.onSyncToRepo) {
+      items.push({ key: "syncToRepo", label: "Sync to Repo", confirmLabel: "Confirm sync to repo?" });
+    }
+    if (props.onRestoreFromRepo) {
+      items.push({ key: "restoreFromRepo", label: "Restore from Repo", confirmLabel: "Confirm restore from repo?" });
+    }
+  }
+  return items;
+}
+
+export function SkillCard(props: Props) {
+  const { skill, onClick, syncStatus } = props;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirming, setConfirming] = useState<ActionKey | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const statusStyle = syncStatus ? STATUS_STYLES[syncStatus] : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700";
+  const items = getMenuItems(syncStatus, props);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+        setConfirming(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
+  const handleMenuAction = (key: ActionKey) => {
+    if (confirming === key) {
+      const actionMap: Record<ActionKey, (() => void) | undefined> = {
+        delete: props.onDelete,
+        syncToRepo: props.onSyncToRepo,
+        syncToAgent: props.onSyncToAgent,
+        restoreFromRepo: props.onRestoreFromRepo,
+      };
+      actionMap[key]?.();
+      setMenuOpen(false);
+      setConfirming(null);
+    } else {
+      setConfirming(key);
+    }
   };
 
   return (
     <div className={`rounded-lg border transition-colors ${statusStyle}`}>
-      <button
-        onClick={onClick}
-        className="w-full text-left p-4 hover:border-blue-300 dark:hover:border-blue-600"
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="font-medium text-gray-900 dark:text-gray-100">
-            {skill.name}
-          </h3>
-          {syncStatus && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400">
-              {STATUS_LABELS[syncStatus]}
-            </span>
+      <div className="flex items-start">
+        <button
+          onClick={onClick}
+          className="flex-1 text-left p-4"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-medium text-gray-900 dark:text-gray-100">
+              {skill.name}
+            </h3>
+            {syncStatus && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400">
+                {STATUS_LABELS[syncStatus]}
+              </span>
+            )}
+            {skill.hasScripts && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                scripts
+              </span>
+            )}
+            {skill.hasReferences && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                refs
+              </span>
+            )}
+          </div>
+          {skill.description && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+              {skill.description}
+            </p>
           )}
-          {skill.hasScripts && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-              scripts
-            </span>
-          )}
-          {skill.hasReferences && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-              refs
-            </span>
-          )}
-        </div>
-        {skill.description && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-            {skill.description}
-          </p>
+        </button>
+
+        {items.length > 0 && (
+          <div className="relative pr-2 pt-2" ref={menuRef}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(!menuOpen);
+                setConfirming(null);
+              }}
+              className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <circle cx="8" cy="3" r="1.5" />
+                <circle cx="8" cy="8" r="1.5" />
+                <circle cx="8" cy="13" r="1.5" />
+              </svg>
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-8 z-50 w-48 py-1 rounded-md shadow-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                {items.map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMenuAction(item.key);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      confirming === item.key
+                        ? item.danger
+                          ? "bg-red-500 text-white"
+                          : "bg-blue-500 text-white"
+                        : item.danger
+                          ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {confirming === item.key ? item.confirmLabel : item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
-      </button>
-      {syncStatus && (
-        <div className="flex items-center gap-2 px-4 pb-3 pt-0">
-          {(syncStatus === "identical" || syncStatus === "agent-only" || syncStatus === "different") && onDelete && (
-            <button
-              onClick={(e) => handleAction(e, onDelete)}
-              className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors"
-            >
-              Delete
-            </button>
-          )}
-          {syncStatus === "agent-only" && onSyncToRepo && (
-            <button
-              onClick={(e) => handleAction(e, onSyncToRepo)}
-              className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors"
-            >
-              Sync to Repo
-            </button>
-          )}
-          {syncStatus === "repo-only" && onSyncToAgent && (
-            <button
-              onClick={(e) => handleAction(e, onSyncToAgent)}
-              className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors"
-            >
-              Sync to Agent
-            </button>
-          )}
-          {syncStatus === "different" && onSyncToRepo && (
-            <button
-              onClick={(e) => handleAction(e, onSyncToRepo)}
-              className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors"
-            >
-              Sync to Repo
-            </button>
-          )}
-          {syncStatus === "different" && onRestoreFromRepo && (
-            <button
-              onClick={(e) => handleAction(e, onRestoreFromRepo)}
-              className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50 transition-colors"
-            >
-              Restore from Repo
-            </button>
-          )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
