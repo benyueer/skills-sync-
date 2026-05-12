@@ -359,6 +359,20 @@ pub fn get_repo_skills() -> Result<Vec<crate::skill::Skill>, String> {
     Ok(crate::skill::discover_skills(&skills_dir, "repo"))
 }
 
+#[tauri::command]
+pub fn open_repo_dir() -> Result<(), String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    if !repo_dir.exists() {
+        return Err(format!("Repo directory does not exist: {}", repo_dir.display()));
+    }
+    opener::open(&repo_dir).map_err(|e| format!("Failed to open repo dir: {}", e))?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {

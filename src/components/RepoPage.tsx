@@ -63,6 +63,10 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
     refresh();
   }, [onSync, refresh]);
 
+  const handleOpenDir = useCallback(async () => {
+    await invoke("open_repo_dir");
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       {/* Address bar */}
@@ -111,6 +115,13 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
             className="px-3 py-1.5 text-sm rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
           >
             {syncing ? "Syncing..." : "Sync to Tools"}
+          </button>
+          <button
+            onClick={handleOpenDir}
+            disabled={!config?.repoLocalPath}
+            className="px-3 py-1.5 text-sm rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+          >
+            Open Dir
           </button>
           {config?.lastSync && (
             <span className="text-xs text-gray-400 ml-auto">
