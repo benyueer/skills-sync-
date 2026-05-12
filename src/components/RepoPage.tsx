@@ -57,6 +57,12 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
           continue;
         }
 
+        // Untracked files (??) count as unstaged
+        if (x === "?" && y === "?") {
+          unstaged++;
+          continue;
+        }
+
         if (x !== " " && x !== "?") staged++;
         if (y !== " " && y !== "?") unstaged++;
       }
