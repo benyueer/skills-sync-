@@ -1,6 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
 import { TOOLS } from "./types";
 import type { Skill, ToolId } from "./types";
 import { useSkills, useConfig, useSync } from "./hooks/useSkills";
@@ -19,22 +21,85 @@ const DEFAULT_DIRS: Record<ToolId, string> = {
 };
 
 function App() {
+  const { config, save, saveCustomDir, saveWindowState, saveDarkMode, saveActiveTab } = useConfig();
   const [activeTab, setActiveTab] = useState<ToolId>("claude-code");
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const { skills, loading, error, refresh } = useSkills(activeTab);
-  const { config, save, saveCustomDir } = useConfig();
   const { syncing, syncResult, syncError, sync } = useSync();
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const [dark, setDark] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<{ toolId: ToolId; backupPath: string } | null>(null);
+  const initialized = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toggleDark = () => {
+  // Apply config on first load
+  useEffect(() => {
+    if (!config || initialized.current) return;
+    initialized.current = true;
+
+    // Apply dark mode
+    if (config.darkMode) {
+      setDark(true);
+      document.documentElement.classList.add("dark");
+    }
+
+    // Apply active tab
+    if (config.lastActiveTab && TOOLS.some(t => t.id === config.lastActiveTab)) {
+      setActiveTab(config.lastActiveTab as ToolId);
+    }
+
+    // Apply window size and position
+    const win = getCurrentWindow();
+    if (config.windowWidth > 0 && config.windowHeight > 0) {
+      win.setSize(new LogicalSize(config.windowWidth, config.windowHeight));
+    }
+    if (config.windowX !== null && config.windowY !== null) {
+      win.setPosition(new LogicalPosition(config.windowX, config.windowY));
+    }
+  }, [config]);
+
+  // Listen for window resize/move events and debounce save
+  useEffect(() => {
+    const win = getCurrentWindow();
+
+    const saveWindow = async () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+      saveTimerRef.current = setTimeout(async () => {
+        try {
+          const size = await win.innerSize();
+          const pos = await win.outerPosition();
+          await saveWindowState(size.width, size.height, pos.x, pos.y);
+        } catch (e) {
+          console.error("Failed to save window state:", e);
+        }
+      }, 500);
+    };
+
+    const unlistenResize = win.onResized(() => saveWindow());
+    const unlistenMove = win.onMoved(() => saveWindow());
+
+    return () => {
+      unlistenResize.then(fn => fn());
+      unlistenMove.then(fn => fn());
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [saveWindowState]);
+
+  const toggleDark = useCallback(() => {
     setDark((d) => {
       const next = !d;
-      document.documentElement.classList.toggle("dark", next);
-      localStorage.setItem("theme", next ? "dark" : "light");
+      if (next) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+      saveDarkMode(next);
       return next;
     });
-  };
+  }, [saveDarkMode]);
 
   const handleSync = useCallback(async () => {
     await sync();
@@ -48,7 +113,8 @@ function App() {
   const handleTabChange = useCallback((id: ToolId) => {
     setActiveTab(id);
     setSelectedSkill(null);
-  }, []);
+    saveActiveTab(id);
+  }, [saveActiveTab]);
 
   const handleBackup = useCallback(async (toolId: string) => {
     return await invoke<string>("backup_skills", { toolId });
