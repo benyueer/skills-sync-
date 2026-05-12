@@ -24,6 +24,9 @@ pub fn run() {
             commands::reveal_path,
             commands::list_skill_files,
             commands::read_file_content,
+            commands::save_window_state,
+            commands::save_dark_mode,
+            commands::save_active_tab,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
