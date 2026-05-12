@@ -352,11 +352,13 @@ pub fn get_repo_skills() -> Result<Vec<crate::skill::Skill>, String> {
         return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
     }
     let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
-    let skills_dir = repo_dir.join("skills");
-    if !skills_dir.exists() {
-        return Ok(Vec::new());
+    let skill_dirs = sync::find_skill_dirs(&repo_dir);
+    let mut skills = Vec::new();
+    for dir in skill_dirs {
+        skills.extend(crate::skill::discover_skills(&dir, "repo"));
     }
-    Ok(crate::skill::discover_skills(&skills_dir, "repo"))
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(skills)
 }
 
 #[tauri::command]

@@ -44,7 +44,7 @@ pub fn sync_skills(repo_dir: &Path, tools: &[Tool]) -> Result<Vec<String>, Strin
     Ok(synced)
 }
 
-fn find_skill_dirs(repo_dir: &Path) -> Vec<PathBuf> {
+pub fn find_skill_dirs(repo_dir: &Path) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     find_skill_dirs_recursive(repo_dir, &mut dirs, 0);
     dirs
