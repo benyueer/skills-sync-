@@ -116,6 +116,40 @@ pub fn get_skill_diff(tool_id: String, skill_name: String, repo_path: String) ->
     Ok(sync::compute_skill_diff(&agent_skill_dir, &repo_skill_dir))
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiff {
+    pub file: String,
+    pub old_content: Option<String>,
+    pub new_content: Option<String>,
+}
+
+#[tauri::command]
+pub fn get_skill_diff_content(tool_id: String, skill_name: String, repo_path: String) -> Result<Vec<FileDiff>, String> {
+    let tool = parse_tool(&tool_id)?;
+    let agent_skill_dir = resolve_skills_dir(&tool).join(&skill_name);
+    let repo_skill_dir = std::path::PathBuf::from(&repo_path);
+
+    if !agent_skill_dir.exists() {
+        return Err(format!("Agent skill directory not found: {}", agent_skill_dir.display()));
+    }
+    if !repo_skill_dir.exists() {
+        return Err(format!("Repo skill directory not found: {}", repo_skill_dir.display()));
+    }
+
+    let diffs = sync::compute_skill_diff_content(&agent_skill_dir, &repo_skill_dir);
+    let mut result: Vec<FileDiff> = diffs
+        .into_iter()
+        .map(|(file, (old_content, new_content))| FileDiff {
+            file,
+            old_content,
+            new_content,
+        })
+        .collect();
+    result.sort_by(|a, b| a.file.cmp(&b.file));
+    Ok(result)
+}
+
 #[tauri::command]
 pub fn list_repo_skill_files(repo_path: String) -> Result<Vec<FileEntry>, String> {
     let skill_dir = std::path::PathBuf::from(&repo_path);

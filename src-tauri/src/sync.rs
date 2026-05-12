@@ -290,3 +290,34 @@ pub fn compute_diff(current: &str, backup: &str) -> String {
 
     result
 }
+
+/// Compute structured diff content (old/new) for each file in a skill.
+/// Returns a map of relative_file_path -> (old_content, new_content).
+/// Either may be None if the file only exists in one side.
+pub fn compute_skill_diff_content(
+    agent_skill_dir: &std::path::Path,
+    repo_skill_dir: &std::path::Path,
+) -> std::collections::HashMap<String, (Option<String>, Option<String>)> {
+    let agent_files = collect_skill_files(agent_skill_dir);
+    let repo_files = collect_skill_files(repo_skill_dir);
+
+    let mut all_files: std::collections::HashSet<String> = std::collections::HashSet::new();
+    all_files.extend(agent_files.keys().cloned());
+    all_files.extend(repo_files.keys().cloned());
+
+    let mut diffs = std::collections::HashMap::new();
+
+    for file in all_files {
+        let agent_content = agent_files.get(&file).map(|b| String::from_utf8_lossy(b).to_string());
+        let repo_content = repo_files.get(&file).map(|b| String::from_utf8_lossy(b).to_string());
+
+        // Skip identical files
+        if agent_content == repo_content {
+            continue;
+        }
+
+        diffs.insert(file, (agent_content, repo_content));
+    }
+
+    diffs
+}

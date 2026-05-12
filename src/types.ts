@@ -70,3 +70,9 @@ export interface RepoGitStatus {
 
 export type GitChangeType = "modified" | "added" | "deleted" | "untracked" | "renamed" | "other";
 export type GitChangeMap = Record<string, GitChangeType>;
+
+export interface FileDiff {
+  file: string;
+  oldContent: string | null;
+  newContent: string | null;
+}

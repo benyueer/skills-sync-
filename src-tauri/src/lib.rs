@@ -29,6 +29,7 @@ pub fn run() {
             commands::save_active_tab,
             commands::compare_skills,
             commands::get_skill_diff,
+            commands::get_skill_diff_content,
             commands::list_repo_skill_files,
             commands::read_repo_file_content,
             commands::git_status,
