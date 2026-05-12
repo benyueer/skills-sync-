@@ -1,20 +1,29 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import type { Skill, FileEntry } from "../types";
+import type { Skill, FileEntry, SyncStatus } from "../types";
 import { FileTree } from "./FileTree";
 import { highlightCode } from "../utils/syntaxHighlight";
 
 interface Props {
   skill: Skill;
   onBack: () => void;
+  syncStatus?: SyncStatus;
+  repoPath?: string | null;
 }
 
-const EDITORS = [
-  { label: "VS Code", command: "code" },
-  { label: "Notepad", command: "notepad" },
-  { label: "Choose app...", command: "__pick__" },
-];
+const STATUS_BG: Record<SyncStatus, string> = {
+  identical: "bg-green-50 dark:bg-green-900/10",
+  "agent-only": "bg-orange-50 dark:bg-orange-900/10",
+  "repo-only": "bg-gray-100 dark:bg-gray-800/50",
+  different: "bg-yellow-50 dark:bg-yellow-900/10",
+};
+
+const STATUS_LABELS: Record<SyncStatus, string> = {
+  identical: "Synced with repo",
+  "agent-only": "Only in agent (not in repo)",
+  "repo-only": "Only in repo (not in agent)",
+  different: "Modified (differs from repo)",
+};
 
 function findFirstFile(entries: FileEntry[]): FileEntry | null {
   for (const entry of entries) {
@@ -27,89 +36,97 @@ function findFirstFile(entries: FileEntry[]): FileEntry | null {
   return null;
 }
 
-export function SkillDetail({ skill, onBack }: Props) {
+export function SkillDetail({ skill, onBack, syncStatus, repoPath }: Props) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  // Diff view state
+  const [showDiff, setShowDiff] = useState(false);
+  const [diffContent, setDiffContent] = useState<string | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
 
   // Load file list on mount
   useEffect(() => {
     setLoading(true);
-    invoke<FileEntry[]>("list_skill_files", { toolId: skill.toolId, skillName: skill.name })
-      .then((fileList) => {
-        setFiles(fileList);
-        // Auto-select the first non-directory file
-        const firstFile = findFirstFile(fileList);
-        if (firstFile) {
-          setSelectedPath(firstFile.path);
-        } else {
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        // Fallback: load SKILL.md directly
-        invoke<string>("read_skill_file", { toolId: skill.toolId, skillName: skill.name })
-          .then((text) => {
-            setContent(text);
-          })
-          .catch((e) => setContent(`Error: ${e}`))
-          .finally(() => setLoading(false));
-      });
-  }, [skill]);
+    if (syncStatus === "repo-only" && repoPath) {
+      // Repo-only: list files from the repo path directly
+      invoke<FileEntry[]>("list_repo_skill_files", { repoPath })
+        .then((fileList) => {
+          setFiles(fileList);
+          const firstFile = findFirstFile(fileList);
+          if (firstFile) {
+            setSelectedPath(firstFile.path);
+          } else {
+            setLoading(false);
+          }
+        })
+        .catch(() => setLoading(false));
+    } else {
+      invoke<FileEntry[]>("list_skill_files", { toolId: skill.toolId, skillName: skill.name })
+        .then((fileList) => {
+          setFiles(fileList);
+          const firstFile = findFirstFile(fileList);
+          if (firstFile) {
+            setSelectedPath(firstFile.path);
+          } else {
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          invoke<string>("read_skill_file", { toolId: skill.toolId, skillName: skill.name })
+            .then((text) => setContent(text))
+            .catch((e) => setContent(`Error: ${e}`))
+            .finally(() => setLoading(false));
+        });
+    }
+  }, [skill, syncStatus, repoPath]);
 
   // Load file content when selectedPath changes
   useEffect(() => {
     if (!selectedPath) return;
     setLoading(true);
-    invoke<string>("read_file_content", { toolId: skill.toolId, path: selectedPath })
-      .then(setContent)
-      .catch((e) => setContent(`Error: ${e}`))
-      .finally(() => setLoading(false));
-  }, [selectedPath, skill.toolId]);
+    if (syncStatus === "repo-only") {
+      invoke<string>("read_repo_file_content", { path: selectedPath })
+        .then(setContent)
+        .catch((e) => setContent(`Error: ${e}`))
+        .finally(() => setLoading(false));
+    } else {
+      invoke<string>("read_file_content", { toolId: skill.toolId, path: selectedPath })
+        .then(setContent)
+        .catch((e) => setContent(`Error: ${e}`))
+        .finally(() => setLoading(false));
+    }
+  }, [selectedPath, skill.toolId, syncStatus]);
 
+  // Load diff content when toggled — calls backend get_skill_diff
   useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpen]);
-
-  const handleOpenWith = async (command: string) => {
-    setMenuOpen(false);
-    let appPath = command;
-
-    if (command === "__pick__") {
-      const selected = await open({
-        multiple: false,
-        filters: [
-          { name: "Executables", extensions: ["exe", "cmd", "bat", "com"] },
-          { name: "All Files", extensions: ["*"] },
-        ],
-      });
-      if (!selected) return;
-      appPath = selected as string;
+    if (!showDiff || !repoPath) {
+      setDiffContent(null);
+      return;
     }
+    setDiffLoading(true);
+    invoke<Record<string, string>>("get_skill_diff", {
+      toolId: skill.toolId,
+      skillName: skill.name,
+      repoPath,
+    })
+      .then((diffs) => {
+        const parts: string[] = [];
+        for (const [file, diff] of Object.entries(diffs)) {
+          parts.push(`--- ${file} ---`);
+          parts.push(diff);
+        }
+        setDiffContent(parts.length > 0 ? parts.join("\n") : "No differences found.");
+      })
+      .catch((e) => setDiffContent(`Error loading diff: ${e}`))
+      .finally(() => setDiffLoading(false));
+  }, [showDiff, repoPath, skill.name, skill.toolId]);
 
-    try {
-      await invoke("open_skill_with_app", {
-        toolId: skill.toolId,
-        skillName: skill.name,
-        appPath,
-      });
-    } catch (e) {
-      alert(`Failed to open: ${e}`);
-    }
-  };
+  const bgClass = syncStatus ? STATUS_BG[syncStatus] : "";
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col h-full ${bgClass}`}>
       <div className="flex items-center gap-2 p-4 border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={onBack}
@@ -120,31 +137,47 @@ export function SkillDetail({ skill, onBack }: Props) {
           </svg>
         </button>
         <div className="flex-1">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">{skill.name}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">{skill.name}</h2>
+            {syncStatus && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400">
+                {STATUS_LABELS[syncStatus]}
+              </span>
+            )}
+          </div>
           {skill.description && (
             <p className="text-sm text-gray-500 dark:text-gray-400">{skill.description}</p>
           )}
         </div>
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Edit
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
-              {EDITORS.map((editor) => (
-                <button
-                  key={editor.command}
-                  onClick={() => handleOpenWith(editor.command)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                >
-                  {editor.label}
-                </button>
-              ))}
-            </div>
+        <div className="flex items-center gap-2">
+          {syncStatus === "different" && repoPath && (
+            <button
+              onClick={() => setShowDiff((v) => !v)}
+              className={`px-3 py-1 text-xs rounded transition-colors ${
+                showDiff
+                  ? "bg-yellow-500 text-white"
+                  : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+              }`}
+            >
+              {showDiff ? "Hide Diff" : "Show Diff"}
+            </button>
           )}
+          <button
+            onClick={async () => {
+              try {
+                if (syncStatus === "repo-only") {
+                  await invoke("open_repo_dir");
+                } else {
+                  await invoke("reveal_path", { path: skill.path });
+                }
+              } catch (e) {
+                alert(`Failed to open directory: ${e}`);
+              }
+            }}
+            className="px-3 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+          >
+            Open Dir
+          </button>
         </div>
       </div>
       <div className="flex-1 flex overflow-hidden">
@@ -160,6 +193,29 @@ export function SkillDetail({ skill, onBack }: Props) {
         <div className="flex-1 overflow-auto p-4">
           {loading ? (
             <div className="text-gray-400 text-sm">Loading...</div>
+          ) : showDiff && syncStatus === "different" ? (
+            <div>
+              {diffLoading ? (
+                <div className="text-gray-400 text-sm">Computing diff...</div>
+              ) : (
+                <pre className="text-sm whitespace-pre-wrap font-mono bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                  {(diffContent ?? "").split("\n").map((line, i) => (
+                    <div
+                      key={i}
+                      className={
+                        line.startsWith("+")
+                          ? "text-green-600 dark:text-green-400"
+                          : line.startsWith("-")
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-gray-500"
+                      }
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </pre>
+              )}
+            </div>
           ) : (
             <pre
               className="text-sm whitespace-pre-wrap font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg"
@@ -173,6 +229,11 @@ export function SkillDetail({ skill, onBack }: Props) {
         </div>
       </div>
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        {syncStatus === "repo-only" ? (
+          <span className="text-xs text-gray-400">
+            Repo: {repoPath}
+          </span>
+        ) : (
         <button
           onClick={async () => {
             try {
@@ -187,6 +248,7 @@ export function SkillDetail({ skill, onBack }: Props) {
         >
           {skill.path}
         </button>
+        )}
       </div>
     </div>
   );
