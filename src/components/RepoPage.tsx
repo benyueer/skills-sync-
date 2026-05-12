@@ -221,9 +221,14 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
         ) : (
           <div className="grid gap-2">
             {skills.map((skill) => {
-              const skillDirName = skill.path.split(/[/\\]/).pop() ?? "";
+              // Compute skill's relative path within the repo
+              const repoPath = config?.repoLocalPath ?? "";
+              let relSkillPath = skill.path;
+              if (repoPath && skill.path.startsWith(repoPath)) {
+                relSkillPath = skill.path.slice(repoPath.length).replace(/^[/\\]/, "");
+              }
               const changeType = Object.entries(gitChanges).find(([filePath]) =>
-                filePath.startsWith(skillDirName + "/") || filePath === skillDirName
+                filePath.startsWith(relSkillPath + "/") || filePath === relSkillPath
               )?.[1];
               return (
                 <SkillCard

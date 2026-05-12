@@ -42,6 +42,14 @@ const GIT_CHANGE_LABELS: Record<string, string> = {
   renamed: "renamed",
 };
 
+const GIT_CHANGE_BADGE_STYLES: Record<string, string> = {
+  modified: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+  added: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+  deleted: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  untracked: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  renamed: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+};
+
 type ActionKey = "delete" | "syncToRepo" | "syncToAgent" | "restoreFromRepo";
 
 interface MenuItem {
@@ -129,7 +137,7 @@ export function SkillCard(props: Props) {
               </span>
             )}
             {gitChange && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+              <span className={`text-xs px-1.5 py-0.5 rounded ${GIT_CHANGE_BADGE_STYLES[gitChange] ?? "bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>
                 {GIT_CHANGE_LABELS[gitChange] ?? gitChange}
               </span>
             )}
