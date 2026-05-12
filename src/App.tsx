@@ -29,6 +29,7 @@ function App() {
   const [dark, setDark] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<{ toolId: ToolId; backupPath: string } | null>(null);
   const initialized = useRef(false);
+  const darkInitialized = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Apply config on first load
@@ -67,9 +68,12 @@ function App() {
       }
       saveTimerRef.current = setTimeout(async () => {
         try {
+          const scaleFactor = await win.scaleFactor();
           const size = await win.innerSize();
+          const logicalSize = size.toLogical(scaleFactor);
           const pos = await win.outerPosition();
-          await saveWindowState(size.width, size.height, pos.x, pos.y);
+          const logicalPos = pos.toLogical(scaleFactor);
+          await saveWindowState(logicalSize.width, logicalSize.height, logicalPos.x, logicalPos.y);
         } catch (e) {
           console.error("Failed to save window state:", e);
         }
@@ -94,6 +98,10 @@ function App() {
 
   // Persist dark mode and apply class when dark state changes
   useEffect(() => {
+    if (!darkInitialized.current) {
+      darkInitialized.current = true;
+      return; // skip initial mount to avoid overwriting saved preference
+    }
     if (dark) {
       document.documentElement.classList.add("dark");
     } else {
