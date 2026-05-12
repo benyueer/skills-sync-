@@ -270,6 +270,30 @@ pub fn execute_restore(tool_id: String, backup_path: String) -> Result<Vec<Strin
     Ok(actions)
 }
 
+#[tauri::command]
+pub fn save_window_state(width: u32, height: u32, x: i32, y: i32) -> Result<(), String> {
+    let mut cfg = config::load();
+    cfg.window_width = width;
+    cfg.window_height = height;
+    cfg.window_x = Some(x);
+    cfg.window_y = Some(y);
+    config::save(&cfg)
+}
+
+#[tauri::command]
+pub fn save_dark_mode(dark: bool) -> Result<(), String> {
+    let mut cfg = config::load();
+    cfg.dark_mode = dark;
+    config::save(&cfg)
+}
+
+#[tauri::command]
+pub fn save_active_tab(tab: String) -> Result<(), String> {
+    let mut cfg = config::load();
+    cfg.last_active_tab = tab;
+    config::save(&cfg)
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
