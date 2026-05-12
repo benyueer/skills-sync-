@@ -185,7 +185,9 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
 
   const handleStatus = useCallback(async () => {
     await runGitAction("Checking...", () => invoke<string>("git_status"));
-  }, [runGitAction]);
+    refresh();
+    await refreshStatus();
+  }, [runGitAction, refresh, refreshStatus]);
 
   const handleSyncToTools = useCallback(async () => {
     await onSync();
