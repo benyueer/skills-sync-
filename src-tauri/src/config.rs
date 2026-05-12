@@ -11,6 +11,30 @@ pub struct AppConfig {
     pub repo_local_path: String,
     #[serde(default)]
     pub custom_skills_dirs: HashMap<String, String>,
+    #[serde(default = "default_window_width")]
+    pub window_width: u32,
+    #[serde(default = "default_window_height")]
+    pub window_height: u32,
+    #[serde(default)]
+    pub window_x: Option<i32>,
+    #[serde(default)]
+    pub window_y: Option<i32>,
+    #[serde(default)]
+    pub dark_mode: bool,
+    #[serde(default = "default_active_tab")]
+    pub last_active_tab: String,
+}
+
+fn default_window_width() -> u32 {
+    800
+}
+
+fn default_window_height() -> u32 {
+    600
+}
+
+fn default_active_tab() -> String {
+    "claude-code".to_string()
 }
 
 impl Default for AppConfig {
@@ -20,6 +44,12 @@ impl Default for AppConfig {
             last_sync: None,
             repo_local_path: String::new(),
             custom_skills_dirs: HashMap::new(),
+            window_width: 800,
+            window_height: 600,
+            window_x: None,
+            window_y: None,
+            dark_mode: false,
+            last_active_tab: "claude-code".to_string(),
         }
     }
 }
