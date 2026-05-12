@@ -1,4 +1,4 @@
-import type { Skill, ToolId } from "../types";
+import type { Skill, ToolId, SkillSyncStatus } from "../types";
 import { SkillCard } from "./SkillCard";
 import { EmptyState } from "./EmptyState";
 
@@ -9,9 +9,14 @@ interface Props {
   toolId: ToolId;
   onSelect: (skill: Skill) => void;
   onOpenDir: (toolId: ToolId) => void;
+  comparedSkills?: SkillSyncStatus[];
+  onDelete?: (skillName: string) => void;
+  onSyncToRepo?: (skillName: string) => void;
+  onSyncToAgent?: (skillName: string) => void;
+  onRestoreFromRepo?: (skillName: string) => void;
 }
 
-export function SkillList({ skills, loading, error, toolId, onSelect, onOpenDir }: Props) {
+export function SkillList({ skills, loading, error, toolId, onSelect, onOpenDir, comparedSkills, onDelete, onSyncToRepo, onSyncToAgent, onRestoreFromRepo }: Props) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-gray-400">
@@ -29,7 +34,29 @@ export function SkillList({ skills, loading, error, toolId, onSelect, onOpenDir 
     );
   }
 
-  if (skills.length === 0) {
+  // Build a lookup map from comparedSkills for O(1) status access
+  const statusMap = new Map(
+    (comparedSkills ?? []).map((cs) => [cs.name, cs.status])
+  );
+
+  // Merge: show all agent skills + any repo-only skills not in agent list
+  const mergedSkills = [...skills];
+  const agentNames = new Set(skills.map((s) => s.name));
+  for (const cs of comparedSkills ?? []) {
+    if (!agentNames.has(cs.name)) {
+      // Repo-only skill — synthesize a minimal Skill object for display
+      mergedSkills.push({
+        name: cs.name,
+        description: "",
+        path: cs.repoPath ?? "",
+        toolId: "repo",
+        hasScripts: false,
+        hasReferences: false,
+      });
+    }
+  }
+
+  if (mergedSkills.length === 0) {
     return (
       <EmptyState
         message="No skills found for this tool"
@@ -41,11 +68,31 @@ export function SkillList({ skills, loading, error, toolId, onSelect, onOpenDir 
   return (
     <div className="p-4 space-y-2">
       <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-        {skills.length} skill{skills.length !== 1 ? "s" : ""} found
+        {mergedSkills.length} skill{mergedSkills.length !== 1 ? "s" : ""} found
+        {comparedSkills && comparedSkills.length > 0 && (
+          <span className="ml-2">
+            ({comparedSkills.filter((s) => s.status === "identical").length} synced,
+            {" "}{comparedSkills.filter((s) => s.status === "different").length} modified,
+            {" "}{comparedSkills.filter((s) => s.status === "repo-only").length} repo only,
+            {" "}{comparedSkills.filter((s) => s.status === "agent-only").length} agent only)
+          </span>
+        )}
       </p>
-      {skills.map((skill) => (
-        <SkillCard key={skill.name} skill={skill} onClick={() => onSelect(skill)} />
-      ))}
+      {mergedSkills.map((skill) => {
+        const status = statusMap.get(skill.name);
+        return (
+          <SkillCard
+            key={skill.name}
+            skill={skill}
+            syncStatus={status}
+            onClick={() => onSelect(skill)}
+            onDelete={status && onDelete ? () => onDelete(skill.name) : undefined}
+            onSyncToRepo={status === "agent-only" || status === "different" ? () => onSyncToRepo?.(skill.name) : undefined}
+            onSyncToAgent={status === "repo-only" ? () => onSyncToAgent?.(skill.name) : undefined}
+            onRestoreFromRepo={status === "different" ? () => onRestoreFromRepo?.(skill.name) : undefined}
+          />
+        );
+      })}
     </div>
   );
 }

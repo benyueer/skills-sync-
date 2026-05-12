@@ -396,6 +396,64 @@ pub fn open_repo_dir() -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn delete_skill_from_agent(tool_id: String, skill_name: String) -> Result<(), String> {
+    let tool = parse_tool(&tool_id)?;
+    let agent_dir = resolve_skills_dir(&tool).join(&skill_name);
+    if !agent_dir.exists() {
+        return Err(format!("Skill not found: {}", agent_dir.display()));
+    }
+    std::fs::remove_dir_all(&agent_dir)
+        .map_err(|e| format!("Failed to delete {}: {}", skill_name, e))
+}
+
+#[tauri::command]
+pub fn sync_skill_to_repo(tool_id: String, skill_name: String) -> Result<(), String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet".to_string());
+    }
+    let tool = parse_tool(&tool_id)?;
+    let agent_dir = resolve_skills_dir(&tool).join(&skill_name);
+    if !agent_dir.exists() {
+        return Err(format!("Agent skill not found: {}", agent_dir.display()));
+    }
+    let repo_skills_dir = std::path::PathBuf::from(&cfg.repo_local_path).join("skills");
+    std::fs::create_dir_all(&repo_skills_dir).map_err(|e| e.to_string())?;
+    let dst = repo_skills_dir.join(&skill_name);
+    sync::copy_dir_recursive(&agent_dir, &dst)
+}
+
+#[tauri::command]
+pub fn sync_skill_to_agent(tool_id: String, skill_name: String) -> Result<(), String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet".to_string());
+    }
+    let tool = parse_tool(&tool_id)?;
+    let repo_dir = find_repo_skill_dir(&cfg.repo_local_path, &skill_name)?;
+    let agent_dir = resolve_skills_dir(&tool).join(&skill_name);
+    sync::copy_dir_recursive(&repo_dir, &agent_dir)
+}
+
+#[tauri::command]
+pub fn restore_skill_from_repo(tool_id: String, skill_name: String) -> Result<(), String> {
+    sync_skill_to_agent(tool_id, skill_name)
+}
+
+fn find_repo_skill_dir(repo_local_path: &str, skill_name: &str) -> Result<std::path::PathBuf, String> {
+    let repo_dir = std::path::PathBuf::from(repo_local_path);
+    let skill_dirs = sync::find_skill_dirs(&repo_dir);
+    skill_dirs
+        .into_iter()
+        .find(|d| {
+            d.file_name()
+                .map(|n| n.to_string_lossy() == skill_name)
+                .unwrap_or(false)
+        })
+        .ok_or_else(|| format!("Skill '{}' not found in repo", skill_name))
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {

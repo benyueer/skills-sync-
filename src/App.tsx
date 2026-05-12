@@ -147,6 +147,29 @@ function App() {
 
   const currentCustomDir = config?.customSkillsDirs?.[activeTab] ?? "";
 
+  const handleDeleteSkill = useCallback(async (skillName: string) => {
+    await invoke("delete_skill_from_agent", { toolId: activeTab, skillName });
+    refresh();
+    refreshCompared();
+  }, [activeTab, refresh, refreshCompared]);
+
+  const handleSyncSkillToRepo = useCallback(async (skillName: string) => {
+    await invoke("sync_skill_to_repo", { toolId: activeTab, skillName });
+    refreshCompared();
+  }, [activeTab, refreshCompared]);
+
+  const handleSyncSkillToAgent = useCallback(async (skillName: string) => {
+    await invoke("sync_skill_to_agent", { toolId: activeTab, skillName });
+    refresh();
+    refreshCompared();
+  }, [activeTab, refresh, refreshCompared]);
+
+  const handleRestoreSkillFromRepo = useCallback(async (skillName: string) => {
+    await invoke("restore_skill_from_repo", { toolId: activeTab, skillName });
+    refresh();
+    refreshCompared();
+  }, [activeTab, refresh, refreshCompared]);
+
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
       <header className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
@@ -196,6 +219,10 @@ function App() {
               onSelect={setSelectedSkill}
               onOpenDir={handleOpenDir}
               comparedSkills={comparedSkills}
+              onDelete={handleDeleteSkill}
+              onSyncToRepo={handleSyncSkillToRepo}
+              onSyncToAgent={handleSyncSkillToAgent}
+              onRestoreFromRepo={handleRestoreSkillFromRepo}
             />
           </>
         )}
