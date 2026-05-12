@@ -19,6 +19,12 @@ export interface AppConfig {
   lastSync: string | null;
   repoLocalPath: string;
   customSkillsDirs: Record<string, string>;
+  windowWidth: number;
+  windowHeight: number;
+  windowX: number | null;
+  windowY: number | null;
+  darkMode: boolean;
+  lastActiveTab: string;
 }
 
 export interface SkillDiff {
