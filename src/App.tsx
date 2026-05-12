@@ -89,17 +89,18 @@ function App() {
   }, [saveWindowState]);
 
   const toggleDark = useCallback(() => {
-    setDark((d) => {
-      const next = !d;
-      if (next) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-      saveDarkMode(next);
-      return next;
-    });
-  }, [saveDarkMode]);
+    setDark((d) => !d);
+  }, []);
+
+  // Persist dark mode and apply class when dark state changes
+  useEffect(() => {
+    if (dark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    saveDarkMode(dark);
+  }, [dark, saveDarkMode]);
 
   const handleSync = useCallback(async () => {
     await sync();
