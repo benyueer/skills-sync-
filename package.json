@@ -15,6 +15,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "highlight.js": "^11.11.1",
     "react": "^19.1.0",
+    "react-diff-viewer-continued": "^4.2.2",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
@@ -23,6 +24,8 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "jimp": "^0.16.1",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.3.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
