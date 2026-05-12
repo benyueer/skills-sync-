@@ -198,6 +198,12 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
     await invoke("open_repo_dir");
   }, []);
 
+  const handleDeleteSkill = useCallback(async (skillName: string) => {
+    await invoke("delete_repo_skill", { skillName });
+    refresh();
+    await refreshStatus();
+  }, [refresh, refreshStatus]);
+
   const anyDisabled = gitLoading || editing;
 
   return (
@@ -328,7 +334,7 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
             </button>
             {config?.lastSync && (
               <span className="text-xs text-gray-400 ml-auto">
-                Last sync: {config.lastSync}
+                Last sync: {config.lastSync.replace(/ UTC$/, "")}
               </span>
             )}
           </div>
@@ -413,6 +419,7 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
                   skill={skill}
                   onClick={() => onSelectSkill(skill)}
                   gitChange={changeType}
+                  onDelete={() => handleDeleteSkill(skill.name)}
                 />
               );
             })}

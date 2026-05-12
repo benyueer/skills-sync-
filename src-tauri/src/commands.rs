@@ -477,6 +477,26 @@ pub fn get_repo_skills() -> Result<Vec<crate::skill::Skill>, String> {
 }
 
 #[tauri::command]
+pub fn delete_repo_skill(skill_name: String) -> Result<(), String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    let skill_dirs = sync::find_skill_dirs(&repo_dir);
+    let skill_dir = skill_dirs
+        .into_iter()
+        .find(|d| {
+            d.file_name()
+                .map(|n| n.to_string_lossy() == skill_name)
+                .unwrap_or(false)
+        })
+        .ok_or_else(|| format!("Skill '{}' not found in repo", skill_name))?;
+    std::fs::remove_dir_all(&skill_dir)
+        .map_err(|e| format!("Failed to delete {}: {}", skill_name, e))
+}
+
+#[tauri::command]
 pub fn open_repo_dir() -> Result<(), String> {
     let cfg = config::load();
     if cfg.repo_local_path.is_empty() {

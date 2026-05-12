@@ -41,6 +41,7 @@ pub fn run() {
             commands::git_resolve_ours,
             commands::git_resolve_theirs,
             commands::get_repo_skills,
+            commands::delete_repo_skill,
             commands::open_repo_dir,
             commands::update_repo_url,
             commands::delete_skill_from_agent,

@@ -61,7 +61,12 @@ interface MenuItem {
 
 function getMenuItems(syncStatus: SyncStatus | undefined, props: Props): MenuItem[] {
   const items: MenuItem[] = [];
-  if (!syncStatus) return items;
+  if (!syncStatus) {
+    if (props.onDelete) {
+      items.push({ key: "delete", label: "Delete", confirmLabel: "Confirm delete?", danger: true });
+    }
+    return items;
+  }
 
   if ((syncStatus === "identical" || syncStatus === "agent-only" || syncStatus === "different") && props.onDelete) {
     items.push({ key: "delete", label: "Delete from Agent", confirmLabel: "Confirm delete?", danger: true });
