@@ -40,6 +40,15 @@ export interface BackupDiff {
   changed: SkillDiff[];
 }
 
+export type SyncStatus = "identical" | "agent-only" | "repo-only" | "different";
+
+export interface SkillSyncStatus {
+  name: string;
+  status: SyncStatus;
+  repoPath: string | null;
+  agentPath: string | null;
+}
+
 export type ToolId = "claude-code" | "opencode" | "codex" | "hermes";
 
 export interface ToolTab {
@@ -53,3 +62,8 @@ export const TOOLS: ToolTab[] = [
   { id: "codex", label: "Codex" },
   { id: "hermes", label: "Hermes" },
 ];
+
+export interface RepoGitStatus {
+  output: string;
+  isClean: boolean;
+}
