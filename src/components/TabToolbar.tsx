@@ -8,7 +8,7 @@ interface Props {
   onSaveDir: (toolId: string, path: string) => Promise<void>;
   onBackup: (toolId: string) => Promise<string>;
   onOpenRestore: (toolId: string) => void;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
 }
 
 export function TabToolbar({
@@ -24,6 +24,7 @@ export function TabToolbar({
   const [dirValue, setDirValue] = useState(customDir || defaultDir);
   const [backing, setBacking] = useState(false);
   const [backupResult, setBackupResult] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const displayDir = customDir || defaultDir;
@@ -44,6 +45,15 @@ export function TabToolbar({
       setBackupResult(`Error: ${e}`);
     } finally {
       setBacking(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -91,6 +101,13 @@ export function TabToolbar({
 
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
           <button
             onClick={handleBackup}
             disabled={backing}

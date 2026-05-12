@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Skill, AppConfig, ToolId } from "../types";
+import type { Skill, AppConfig, ToolId, SkillSyncStatus } from "../types";
 
 export function useSkills(toolId: ToolId) {
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -87,4 +87,35 @@ export function useSync() {
   }, []);
 
   return { syncing, syncResult, syncError, sync };
+}
+
+export function useComparedSkills(toolId: ToolId) {
+  const [comparedSkills, setComparedSkills] = useState<SkillSyncStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await invoke<SkillSyncStatus[]>("compare_skills", { toolId });
+      setComparedSkills(result);
+    } catch (e) {
+      // If repo not configured, this is not an error — just no comparison available
+      const msg = String(e);
+      if (msg.includes("not cloned")) {
+        setComparedSkills([]);
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [toolId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { comparedSkills, loading, error, refresh };
 }
