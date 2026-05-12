@@ -67,3 +67,6 @@ export interface RepoGitStatus {
   output: string;
   isClean: boolean;
 }
+
+export type GitChangeType = "modified" | "added" | "deleted" | "untracked" | "renamed" | "other";
+export type GitChangeMap = Record<string, GitChangeType>;

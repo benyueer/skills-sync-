@@ -40,6 +40,7 @@ pub fn run() {
             commands::sync_skill_to_repo,
             commands::sync_skill_to_agent,
             commands::restore_skill_from_repo,
+            commands::get_repo_git_changes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppConfig, Skill } from "../types";
+import type { AppConfig, Skill, GitChangeMap } from "../types";
 import { useRepoSkills } from "../hooks/useRepoSkills";
 import { SkillCard } from "./SkillCard";
 
@@ -21,6 +21,22 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const [gitError, setGitError] = useState<string | null>(null);
   const [gitLoading, setGitLoading] = useState(false);
   const { skills, loading, error, refresh } = useRepoSkills(config?.repoLocalPath ?? "");
+  const [gitChanges, setGitChanges] = useState<GitChangeMap>({});
+
+  const fetchGitChanges = useCallback(async () => {
+    try {
+      const changes = await invoke<GitChangeMap>("get_repo_git_changes");
+      setGitChanges(changes);
+    } catch {
+      // silently ignore — git status is best-effort
+    }
+  }, []);
+
+  useEffect(() => {
+    if (config?.repoLocalPath) {
+      fetchGitChanges();
+    }
+  }, [config?.repoLocalPath, fetchGitChanges]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -51,12 +67,13 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
       const result = await invoke<string>("git_pull");
       setGitOutput(result || "Pull completed successfully");
       refresh();
+      fetchGitChanges();
     } catch (e) {
       setGitError(String(e));
     } finally {
       setGitLoading(false);
     }
-  }, [refresh]);
+  }, [refresh, fetchGitChanges]);
 
   const handleStatus = useCallback(async () => {
     setGitLoading(true);
@@ -75,7 +92,8 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const handleSyncToTools = useCallback(async () => {
     await onSync();
     refresh();
-  }, [onSync, refresh]);
+    fetchGitChanges();
+  }, [onSync, refresh, fetchGitChanges]);
 
   const handleOpenDir = useCallback(async () => {
     await invoke("open_repo_dir");
@@ -202,13 +220,20 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
           </p>
         ) : (
           <div className="grid gap-2">
-            {skills.map((skill) => (
-              <SkillCard
-                key={skill.name}
-                skill={skill}
-                onClick={() => onSelectSkill(skill)}
-              />
-            ))}
+            {skills.map((skill) => {
+              const skillDirName = skill.path.split(/[/\\]/).pop() ?? "";
+              const changeType = Object.entries(gitChanges).find(([filePath]) =>
+                filePath.startsWith(skillDirName + "/") || filePath === skillDirName
+              )?.[1];
+              return (
+                <SkillCard
+                  key={skill.name}
+                  skill={skill}
+                  onClick={() => onSelectSkill(skill)}
+                  gitChange={changeType}
+                />
+              );
+            })}
           </div>
         )}
       </div>

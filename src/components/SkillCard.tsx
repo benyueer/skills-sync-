@@ -5,6 +5,7 @@ interface Props {
   skill: Skill;
   onClick: () => void;
   syncStatus?: SyncStatus;
+  gitChange?: string;
   onDelete?: () => void;
   onSyncToRepo?: () => void;
   onSyncToAgent?: () => void;
@@ -23,6 +24,22 @@ const STATUS_LABELS: Record<SyncStatus, string> = {
   "agent-only": "Agent only",
   "repo-only": "Repo only",
   different: "Modified",
+};
+
+const GIT_CHANGE_STYLES: Record<string, string> = {
+  modified: "border-l-4 border-l-amber-400 dark:border-l-amber-500",
+  added: "border-l-4 border-l-emerald-400 dark:border-l-emerald-500",
+  deleted: "border-l-4 border-l-red-400 dark:border-l-red-500",
+  untracked: "border-l-4 border-l-blue-400 dark:border-l-blue-500",
+  renamed: "border-l-4 border-l-purple-400 dark:border-l-purple-500",
+};
+
+const GIT_CHANGE_LABELS: Record<string, string> = {
+  modified: "modified",
+  added: "new",
+  deleted: "deleted",
+  untracked: "untracked",
+  renamed: "renamed",
 };
 
 type ActionKey = "delete" | "syncToRepo" | "syncToAgent" | "restoreFromRepo";
@@ -59,7 +76,7 @@ function getMenuItems(syncStatus: SyncStatus | undefined, props: Props): MenuIte
 }
 
 export function SkillCard(props: Props) {
-  const { skill, onClick, syncStatus } = props;
+  const { skill, onClick, syncStatus, gitChange } = props;
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirming, setConfirming] = useState<ActionKey | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -96,7 +113,7 @@ export function SkillCard(props: Props) {
   };
 
   return (
-    <div className={`rounded-lg border transition-colors ${statusStyle}`}>
+    <div className={`rounded-lg border transition-colors ${statusStyle} ${gitChange ? GIT_CHANGE_STYLES[gitChange] ?? "" : ""}`}>
       <div className="flex items-start">
         <button
           onClick={onClick}
@@ -109,6 +126,11 @@ export function SkillCard(props: Props) {
             {syncStatus && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400">
                 {STATUS_LABELS[syncStatus]}
+              </span>
+            )}
+            {gitChange && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                {GIT_CHANGE_LABELS[gitChange] ?? gitChange}
               </span>
             )}
             {skill.hasScripts && (

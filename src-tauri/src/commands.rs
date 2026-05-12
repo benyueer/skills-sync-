@@ -441,6 +441,46 @@ pub fn restore_skill_from_repo(tool_id: String, skill_name: String) -> Result<()
     sync_skill_to_agent(tool_id, skill_name)
 }
 
+#[tauri::command]
+pub fn get_repo_git_changes() -> Result<HashMap<String, String>, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    let output = sync::git_status(&repo_dir)?;
+
+    let mut changes: HashMap<String, String> = HashMap::new();
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        // git status --short format: XY filename (or XY -> filename for renames)
+        if line.len() >= 3 {
+            let xy = &line[..2];
+            let rest = line[3..].trim();
+            // Handle renames: "old -> new"
+            let path = if let Some(arrow) = rest.find(" -> ") {
+                &rest[arrow + 4..]
+            } else {
+                rest
+            };
+            let change_type = match xy.trim() {
+                "M" | "MM" | "AM" => "modified",
+                "A" => "added",
+                "D" => "deleted",
+                "??" => "untracked",
+                "R" => "renamed",
+                _ => "other",
+            };
+            changes.insert(path.to_string(), change_type.to_string());
+        }
+    }
+
+    Ok(changes)
+}
+
 fn find_repo_skill_dir(repo_local_path: &str, skill_name: &str) -> Result<std::path::PathBuf, String> {
     let repo_dir = std::path::PathBuf::from(repo_local_path);
     let skill_dirs = sync::find_skill_dirs(&repo_dir);
