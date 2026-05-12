@@ -355,7 +355,9 @@ pub fn get_repo_skills() -> Result<Vec<crate::skill::Skill>, String> {
     let skill_dirs = sync::find_skill_dirs(&repo_dir);
     let mut skills = Vec::new();
     for dir in skill_dirs {
-        skills.extend(crate::skill::discover_skills(&dir, "repo"));
+        if let Some(skill) = crate::skill::parse_skill(&dir, "repo") {
+            skills.push(skill);
+        }
     }
     skills.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(skills)
