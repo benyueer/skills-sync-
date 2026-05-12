@@ -56,14 +56,13 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
       const conflicts: string[] = [];
 
       for (const line of output.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.length < 3) continue;
-        const x = trimmed[0]; // index (staged)
-        const y = trimmed[1]; // worktree (unstaged)
+        if (line.length < 3) continue;
+        const x = line[0]; // index (staged)
+        const y = line[1]; // worktree (unstaged)
 
         // Conflict states: UU, AA, DD, AU, UA, DU, UD
         if ((x === "U" || y === "U") || (x === "A" && y === "A") || (x === "D" && y === "D")) {
-          conflicts.push(trimmed.slice(3).trim());
+          conflicts.push(line.slice(3).trim());
           continue;
         }
 

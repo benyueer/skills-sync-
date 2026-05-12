@@ -546,12 +546,11 @@ pub fn get_repo_git_changes() -> Result<HashMap<String, String>, String> {
 
     let mut changes: HashMap<String, String> = HashMap::new();
     for line in output.lines() {
-        let line = line.trim();
-        if line.is_empty() {
+        if line.len() < 3 {
             continue;
         }
-        // git status --short format: XY filename (or XY -> filename for renames)
-        if line.len() >= 3 {
+        // git status --short format: XY filename (positions 0-1 are status, 2 is space)
+        {
             let xy = &line[..2];
             let rest = line[3..].trim();
             // Handle renames: "old -> new"
