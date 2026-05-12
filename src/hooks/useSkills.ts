@@ -49,7 +49,22 @@ export function useConfig() {
     await refresh();
   }, [refresh]);
 
-  return { config, save, saveCustomDir, refresh };
+  const saveWindowState = useCallback(async (width: number, height: number, x: number, y: number) => {
+    await invoke("save_window_state", { width, height, x, y });
+    // Don't refresh - avoid re-render loop since window events fire frequently
+  }, []);
+
+  const saveDarkMode = useCallback(async (dark: boolean) => {
+    await invoke("save_dark_mode", { dark });
+    await refresh();
+  }, [refresh]);
+
+  const saveActiveTab = useCallback(async (tab: string) => {
+    await invoke("save_active_tab", { tab });
+    await refresh();
+  }, [refresh]);
+
+  return { config, save, saveCustomDir, saveWindowState, saveDarkMode, saveActiveTab, refresh };
 }
 
 export function useSync() {
