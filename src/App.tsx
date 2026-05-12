@@ -26,8 +26,8 @@ function App() {
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const isToolTab = activeTab !== "repo";
   const { skills, loading, error, refresh } = useSkills(isToolTab ? activeTab as ToolId : "claude-code");
-  const { syncing, syncResult, syncError, sync } = useSync();
-  const { comparedSkills, refresh: refreshCompared } = useComparedSkills(activeTab);
+  const { syncing, sync } = useSync();
+  const { comparedSkills, refresh: refreshCompared } = useComparedSkills(isToolTab ? activeTab as ToolId : "claude-code");
   const [dark, setDark] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<{ toolId: ToolId; backupPath: string } | null>(null);
   const initialized = useRef(false);
