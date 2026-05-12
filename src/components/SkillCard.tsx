@@ -130,10 +130,10 @@ export function SkillCard(props: Props) {
       <div className="flex items-start">
         <button
           onClick={onClick}
-          className="flex-1 text-left p-4"
+          className="flex-1 text-left p-4 select-text"
         >
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-medium text-gray-900 dark:text-gray-100">
+            <h3 className="font-medium text-gray-900 dark:text-gray-100 select-text">
               {skill.name}
             </h3>
             {syncStatus && (
@@ -158,7 +158,7 @@ export function SkillCard(props: Props) {
             )}
           </div>
           {skill.description && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 select-text">
               {skill.description}
             </p>
           )}

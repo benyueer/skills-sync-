@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppConfig, Skill, GitChangeMap } from "../types";
 import { useRepoSkills } from "../hooks/useRepoSkills";
@@ -28,6 +28,7 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const [saving, setSaving] = useState(false);
   const [gitOutput, setGitOutput] = useState<string | null>(null);
   const [gitError, setGitError] = useState<string | null>(null);
+  const [gitSuccess, setGitSuccess] = useState<string | null>(null);
   const [gitLoading, setGitLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [commitMessage, setCommitMessage] = useState("");
@@ -95,6 +96,24 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
     }
   }, [config?.repoLocalPath, refreshStatus]);
 
+  // Auto-clear success message after 4 seconds
+  useEffect(() => {
+    if (!gitSuccess) return;
+    const timer = setTimeout(() => setGitSuccess(null), 4000);
+    return () => clearTimeout(timer);
+  }, [gitSuccess]);
+
+  // Sync URL and editing state when config loads asynchronously
+  const initialLoadDone = useRef(false);
+  useEffect(() => {
+    if (!config) return;
+    setUrl(config.gitRepoUrl ?? "");
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      setEditing(!config.gitRepoUrl);
+    }
+  }, [config?.gitRepoUrl]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -141,6 +160,7 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
       refresh();
     });
     await refreshStatus();
+    setGitSuccess("✓ Pull successful");
   }, [runGitAction, refresh, refreshStatus]);
 
   const handleAdd = useCallback(async () => {
@@ -159,6 +179,7 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
   const handlePush = useCallback(async () => {
     await runGitAction("Pushing...", () => invoke<string>("git_push"));
     await refreshStatus();
+    setGitSuccess("✓ Push successful");
   }, [runGitAction, refreshStatus]);
 
   // ── Conflict resolution ──
@@ -376,7 +397,10 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
           </div>
         </div>
 
-        {/* Git output */}
+        {/* Success / Error / Output */}
+        {gitSuccess && (
+          <p className="mt-2 text-xs text-green-600 dark:text-green-400 font-medium">{gitSuccess}</p>
+        )}
         {gitOutput && (
           <pre className="mt-2 p-2 text-xs rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap">
             {gitOutput}
@@ -410,8 +434,10 @@ export function RepoPage({ config, onSaveUrl, onSync, syncing, onSelectSkill }: 
               if (repoPath && skill.path.startsWith(repoPath)) {
                 relSkillPath = skill.path.slice(repoPath.length).replace(/^[/\\]/, "");
               }
+              // Normalize to forward slashes for cross-platform matching (git uses /)
+              const normalizedRelPath = relSkillPath.replace(/\\/g, "/");
               const changeType = Object.entries(gitChanges).find(([filePath]) =>
-                filePath.startsWith(relSkillPath + "/") || filePath === relSkillPath
+                filePath.startsWith(normalizedRelPath + "/") || filePath === normalizedRelPath
               )?.[1];
               return (
                 <SkillCard

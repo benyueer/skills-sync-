@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
 import { TOOLS } from "./types";
 import type { Skill, ToolId } from "./types";
 import { useSkills, useConfig, useSync, useComparedSkills } from "./hooks/useSkills";
@@ -21,7 +20,7 @@ const DEFAULT_DIRS: Record<ToolId, string> = {
 };
 
 function App() {
-  const { config, save, saveCustomDir, saveWindowState, saveDarkMode, saveActiveTab } = useConfig();
+  const { config, save, saveCustomDir, saveWindowState, saveDarkMode, saveActiveTab, refresh: refreshConfig } = useConfig();
   const [activeTab, setActiveTab] = useState<string>("repo");
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const isToolTab = activeTab !== "repo";
@@ -34,7 +33,7 @@ function App() {
   const darkInitialized = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Apply config on first load
+  // Apply config on first load, then set up window listeners
   useEffect(() => {
     if (!config || initialized.current) return;
     initialized.current = true;
@@ -50,20 +49,9 @@ function App() {
       setActiveTab(config.lastActiveTab);
     }
 
-    // Apply window size and position
+    // Window size/position is restored from config in Rust setup hook (lib.rs)
+    // Set up window resize/move listeners to persist changes during session
     const win = getCurrentWindow();
-    if (config.windowWidth > 0 && config.windowHeight > 0) {
-      win.setSize(new LogicalSize(config.windowWidth, config.windowHeight));
-    }
-    if (config.windowX !== null && config.windowY !== null) {
-      win.setPosition(new LogicalPosition(config.windowX, config.windowY));
-    }
-  }, [config]);
-
-  // Listen for window resize/move events and debounce save
-  useEffect(() => {
-    const win = getCurrentWindow();
-
     const saveWindow = async () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
@@ -92,7 +80,7 @@ function App() {
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [saveWindowState]);
+  }, [config, saveWindowState]);
 
   const toggleDark = useCallback(() => {
     setDark((d) => !d);
@@ -116,7 +104,8 @@ function App() {
     await sync();
     refresh();
     refreshCompared();
-  }, [sync, refresh, refreshCompared]);
+    refreshConfig();
+  }, [sync, refresh, refreshCompared, refreshConfig]);
 
   const handleOpenDir = useCallback(async (toolId: ToolId) => {
     await invoke("open_skills_dir", { toolId });

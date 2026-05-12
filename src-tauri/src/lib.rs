@@ -4,11 +4,29 @@ mod skill;
 mod sync;
 mod tools;
 
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            // Restore window size/position from saved config before webview loads
+            let cfg = config::load();
+            if let Some(window) = app.get_webview_window("main") {
+                let size: tauri::LogicalSize<f64> = tauri::LogicalSize::new(
+                    cfg.window_width as f64,
+                    cfg.window_height as f64,
+                );
+                let _ = window.set_size(size);
+                if let (Some(x), Some(y)) = (cfg.window_x, cfg.window_y) {
+                    let pos: tauri::LogicalPosition<f64> = tauri::LogicalPosition::new(x as f64, y as f64);
+                    let _ = window.set_position(pos);
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_skills,
             commands::get_config,
