@@ -24,12 +24,16 @@ function App() {
   const { skills, loading, error, refresh } = useSkills(activeTab);
   const { config, save, saveCustomDir } = useConfig();
   const { syncing, syncResult, syncError, sync } = useSync();
-  const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
   const [restoreTarget, setRestoreTarget] = useState<{ toolId: ToolId; backupPath: string } | null>(null);
 
   const toggleDark = () => {
-    setDark((d) => !d);
-    document.documentElement.classList.toggle("dark");
+    setDark((d) => {
+      const next = !d;
+      document.documentElement.classList.toggle("dark", next);
+      localStorage.setItem("theme", next ? "dark" : "light");
+      return next;
+    });
   };
 
   const handleSync = useCallback(async () => {
