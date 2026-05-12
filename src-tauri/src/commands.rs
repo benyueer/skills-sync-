@@ -1,6 +1,6 @@
-use crate::{config, skill, skill::Skill, sync, tools::Tool};
+use crate::{config, skill, skill::Skill, sync, sync::SkillSyncStatus, tools::Tool};
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 fn resolve_skills_dir(tool: &Tool) -> std::path::PathBuf {
     let cfg = config::load();
@@ -65,6 +65,63 @@ pub async fn sync_from_git() -> Result<Vec<String>, String> {
     config::save(&cfg)?;
 
     Ok(synced)
+}
+
+#[tauri::command]
+pub fn compare_skills(tool_id: String) -> Result<Vec<SkillSyncStatus>, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("Git repo not cloned yet. Set a Git URL and sync first.".to_string());
+    }
+
+    let repo_skills_dir = std::path::PathBuf::from(&cfg.repo_local_path).join("skills");
+    let tool = parse_tool(&tool_id)?;
+    let agent_skills_dir = resolve_skills_dir(&tool);
+
+    Ok(sync::compare_skill_dirs(&repo_skills_dir, &agent_skills_dir))
+}
+
+#[tauri::command]
+pub fn get_skill_diff(tool_id: String, skill_name: String, repo_path: String) -> Result<HashMap<String, String>, String> {
+    let tool = parse_tool(&tool_id)?;
+    let agent_skill_dir = resolve_skills_dir(&tool).join(&skill_name);
+    let repo_skill_dir = std::path::PathBuf::from(&repo_path);
+
+    if !agent_skill_dir.exists() {
+        return Err(format!("Agent skill directory not found: {}", agent_skill_dir.display()));
+    }
+    if !repo_skill_dir.exists() {
+        return Err(format!("Repo skill directory not found: {}", repo_skill_dir.display()));
+    }
+
+    Ok(sync::compute_skill_diff(&agent_skill_dir, &repo_skill_dir))
+}
+
+#[tauri::command]
+pub fn list_repo_skill_files(repo_path: String) -> Result<Vec<FileEntry>, String> {
+    let skill_dir = std::path::PathBuf::from(&repo_path);
+    if !skill_dir.exists() {
+        return Err(format!("Skill directory does not exist: {}", skill_dir.display()));
+    }
+    build_file_tree(&skill_dir, 20)
+}
+
+#[tauri::command]
+pub fn read_repo_file_content(path: String) -> Result<String, String> {
+    let file_path = std::path::PathBuf::from(&path);
+    let metadata = std::fs::metadata(&file_path).map_err(|e| e.to_string())?;
+    if !metadata.is_file() {
+        return Err(format!("Path is not a file: {}", path));
+    }
+    if metadata.len() > 1_048_576 {
+        return Err("File is too large (>1MB)".to_string());
+    }
+    let bytes = std::fs::read(&file_path).map_err(|e| e.to_string())?;
+    let preview = &bytes[..bytes.len().min(8192)];
+    if preview.contains(&0) {
+        return Err("Binary file cannot be displayed".to_string());
+    }
+    String::from_utf8(bytes).map_err(|e| format!("Invalid UTF-8: {}", e))
 }
 
 #[tauri::command]
@@ -153,35 +210,6 @@ pub struct BackupDiff {
     pub changed: Vec<SkillDiff>,
 }
 
-fn compute_diff(current: &str, backup: &str) -> String {
-    let current_lines: Vec<&str> = current.lines().collect();
-    let backup_lines: Vec<&str> = backup.lines().collect();
-
-    let mut result = String::new();
-    let max_len = current_lines.len().max(backup_lines.len());
-
-    for i in 0..max_len {
-        match (current_lines.get(i), backup_lines.get(i)) {
-            (Some(a), Some(b)) if a == b => {
-                result.push_str(&format!(" {}\n", a));
-            }
-            (Some(a), Some(b)) => {
-                result.push_str(&format!("-{}\n", a));
-                result.push_str(&format!("+{}\n", b));
-            }
-            (Some(a), None) => {
-                result.push_str(&format!("-{}\n", a));
-            }
-            (None, Some(b)) => {
-                result.push_str(&format!("+{}\n", b));
-            }
-            (None, None) => {}
-        }
-    }
-
-    result
-}
-
 #[tauri::command]
 pub fn preview_restore(tool_id: String, backup_path: String) -> Result<BackupDiff, String> {
     let tool = parse_tool(&tool_id)?;
@@ -214,7 +242,7 @@ pub fn preview_restore(tool_id: String, backup_path: String) -> Result<BackupDif
         let backup_content = std::fs::read_to_string(&backup_md).unwrap_or_default();
 
         if current_content != backup_content {
-            let diff = compute_diff(&current_content, &backup_content);
+            let diff = sync::compute_diff(&current_content, &backup_content);
             changed.push(SkillDiff {
                 name: name.clone(),
                 status: "changed".to_string(),
@@ -292,6 +320,43 @@ pub fn save_active_tab(tab: String) -> Result<(), String> {
     let mut cfg = config::load();
     cfg.last_active_tab = tab;
     config::save(&cfg)
+}
+
+#[tauri::command]
+pub fn git_status() -> Result<String, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    sync::git_status(&repo_dir)
+}
+
+#[tauri::command]
+pub fn git_pull() -> Result<String, String> {
+    let cfg = config::load();
+    if cfg.git_repo_url.is_empty() {
+        return Err("Git repo URL is not configured".to_string());
+    }
+    let repo_dir = sync::ensure_repo(&cfg.git_repo_url)?;
+    let mut cfg = config::load();
+    cfg.repo_local_path = repo_dir.to_string_lossy().to_string();
+    config::save(&cfg)?;
+    sync::git_pull(&repo_dir)
+}
+
+#[tauri::command]
+pub fn get_repo_skills() -> Result<Vec<crate::skill::Skill>, String> {
+    let cfg = config::load();
+    if cfg.repo_local_path.is_empty() {
+        return Err("No repo cloned yet. Set a Git URL and sync first.".to_string());
+    }
+    let repo_dir = std::path::PathBuf::from(&cfg.repo_local_path);
+    let skills_dir = repo_dir.join("skills");
+    if !skills_dir.exists() {
+        return Ok(Vec::new());
+    }
+    Ok(crate::skill::discover_skills(&skills_dir, "repo"))
 }
 
 #[derive(Debug, Clone, Serialize)]

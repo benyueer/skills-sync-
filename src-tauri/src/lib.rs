@@ -27,6 +27,13 @@ pub fn run() {
             commands::save_window_state,
             commands::save_dark_mode,
             commands::save_active_tab,
+            commands::compare_skills,
+            commands::get_skill_diff,
+            commands::list_repo_skill_files,
+            commands::read_repo_file_content,
+            commands::git_status,
+            commands::git_pull,
+            commands::get_repo_skills,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
