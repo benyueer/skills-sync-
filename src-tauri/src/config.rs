@@ -44,12 +44,12 @@ impl Default for AppConfig {
             last_sync: None,
             repo_local_path: String::new(),
             custom_skills_dirs: HashMap::new(),
-            window_width: 800,
-            window_height: 600,
+            window_width: default_window_width(),
+            window_height: default_window_height(),
             window_x: None,
             window_y: None,
             dark_mode: false,
-            last_active_tab: "claude-code".to_string(),
+            last_active_tab: default_active_tab(),
         }
     }
 }
