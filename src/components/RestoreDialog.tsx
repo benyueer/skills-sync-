@@ -38,18 +38,18 @@ export function RestoreDialog({ toolId, backupPath, onConfirm, onCancel }: Props
   const hasChanges = diff && (diff.added.length > 0 || diff.deleted.length > 0 || diff.changed.length > 0);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onCancel}>
+    <div className='fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50' onClick={onCancel}>
       <div
-        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-[700px] max-h-[80vh] flex flex-col"
+        className='bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-md w-[700px] max-h-[80vh] flex flex-col'
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Confirm Restore
+        <div className='px-6 py-4 border-b border-gray-200 dark:border-gray-800'>
+          <h2 className='text-base font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider'>
+            确认还原备份
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            From: {backupPath}
+          <p className='text-xs font-mono text-gray-550 dark:text-gray-400 mt-1 truncate'>
+            路径: {backupPath}
           </p>
         </div>
 
@@ -133,19 +133,19 @@ export function RestoreDialog({ toolId, backupPath, onConfirm, onCancel }: Props
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+        <div className='px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-end gap-3'>
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+            className='px-4 py-2 text-sm font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-850 dark:hover:text-gray-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-md'
           >
-            Cancel
+            取消
           </button>
           <button
             onClick={handleConfirm}
             disabled={restoring || loading || !hasChanges}
-            className="px-4 py-2 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50"
+            className='px-4 py-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 disabled:bg-orange-900/30 disabled:text-orange-400/50 disabled:cursor-not-allowed text-white rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500'
           >
-            {restoring ? "Restoring..." : "Confirm Restore"}
+            {restoring ? '还原中...' : '确认还原'}
           </button>
         </div>
       </div>

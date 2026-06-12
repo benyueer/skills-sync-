@@ -5,10 +5,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
-    pub git_repo_url: String,
-    pub last_sync: Option<String>,
     #[serde(default)]
-    pub repo_local_path: String,
+    pub central_skills_dir: String,
     #[serde(default)]
     pub custom_skills_dirs: HashMap<String, String>,
     #[serde(default = "default_window_width")]
@@ -34,15 +32,13 @@ fn default_window_height() -> u32 {
 }
 
 fn default_active_tab() -> String {
-    "claude-code".to_string()
+    "central".to_string()
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            git_repo_url: String::new(),
-            last_sync: None,
-            repo_local_path: String::new(),
+            central_skills_dir: String::new(),
             custom_skills_dirs: HashMap::new(),
             window_width: default_window_width(),
             window_height: default_window_height(),

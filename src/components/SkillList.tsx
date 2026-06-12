@@ -1,98 +1,67 @@
-import type { Skill, ToolId, SkillSyncStatus } from "../types";
-import { SkillCard } from "./SkillCard";
-import { EmptyState } from "./EmptyState";
+import type { Skill, ToolId } from '../types'
+import { SkillCard } from './SkillCard'
+import { EmptyState } from './EmptyState'
 
 interface Props {
-  skills: Skill[];
-  loading: boolean;
-  error: string | null;
-  toolId: ToolId;
-  onSelect: (skill: Skill) => void;
-  onOpenDir: (toolId: ToolId) => void;
-  comparedSkills?: SkillSyncStatus[];
-  onDelete?: (skillName: string) => void;
-  onSyncToRepo?: (skillName: string) => void;
-  onSyncToAgent?: (skillName: string) => void;
-  onRestoreFromRepo?: (skillName: string) => void;
+  skills: Skill[]
+  loading: boolean
+  error: string | null
+  toolId: ToolId
+  onSelect: (skill: Skill) => void
+  onOpenDir: (toolId: ToolId) => void
+  onDelete?: (skillName: string) => void
 }
 
-export function SkillList({ skills, loading, error, toolId, onSelect, onOpenDir, comparedSkills, onDelete, onSyncToRepo, onSyncToAgent, onRestoreFromRepo }: Props) {
+export function SkillList({
+  skills,
+  loading,
+  error,
+  toolId,
+  onSelect,
+  onOpenDir,
+  onDelete
+}: Props) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16 text-gray-400">
-        <div className="animate-spin w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full" />
-        <span className="ml-2 text-sm">Loading skills...</span>
+      <div className='flex items-center justify-center py-16 text-gray-400'>
+        <div className='animate-spin w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full' />
+        <span className='ml-2.5 text-sm'>正在读取技能列表...</span>
       </div>
-    );
+    )
   }
 
   if (error) {
     return (
-      <div className="p-4 m-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+      <div className='p-4 m-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm border border-red-200 dark:border-red-900'>
         {error}
       </div>
-    );
+    )
   }
 
-  // Build a lookup map from comparedSkills for O(1) status access
-  const statusMap = new Map(
-    (comparedSkills ?? []).map((cs) => [cs.name, cs.status])
-  );
-
-  // Merge: show all agent skills + any repo-only skills not in agent list
-  const mergedSkills = [...skills];
-  const agentNames = new Set(skills.map((s) => s.name));
-  for (const cs of comparedSkills ?? []) {
-    if (!agentNames.has(cs.name)) {
-      // Repo-only skill — synthesize a minimal Skill object for display
-      mergedSkills.push({
-        name: cs.name,
-        description: "",
-        path: cs.repoPath ?? "",
-        toolId: "repo",
-        hasScripts: false,
-        hasReferences: false,
-      });
-    }
-  }
-
-  if (mergedSkills.length === 0) {
+  if (skills.length === 0) {
     return (
       <EmptyState
-        message="No skills found for this tool"
-        action={{ label: "Open skills directory", onClick: () => onOpenDir(toolId) }}
+        message='当前助理目录下暂无技能'
+        action={{ label: '打开技能文件夹', onClick: () => onOpenDir(toolId) }}
       />
-    );
+    )
   }
 
   return (
-    <div className="p-4 space-y-2">
-      <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-        {mergedSkills.length} skill{mergedSkills.length !== 1 ? "s" : ""} found
-        {comparedSkills && comparedSkills.length > 0 && (
-          <span className="ml-2">
-            ({comparedSkills.filter((s) => s.status === "identical").length} synced,
-            {" "}{comparedSkills.filter((s) => s.status === "different").length} modified,
-            {" "}{comparedSkills.filter((s) => s.status === "repo-only").length} repo only,
-            {" "}{comparedSkills.filter((s) => s.status === "agent-only").length} agent only)
-          </span>
-        )}
+    <div className='p-5 space-y-3 max-w-4xl mx-auto'>
+      <p className='text-xs text-gray-400 dark:text-gray-500 mb-1'>
+        共找到 {skills.length} 个技能
       </p>
-      {mergedSkills.map((skill) => {
-        const status = statusMap.get(skill.name);
-        return (
+      <div className='space-y-3'>
+        {skills.map((skill) => (
           <SkillCard
             key={skill.name}
             skill={skill}
-            syncStatus={status}
             onClick={() => onSelect(skill)}
-            onDelete={status && onDelete ? () => onDelete(skill.name) : undefined}
-            onSyncToRepo={status === "agent-only" || status === "different" ? () => onSyncToRepo?.(skill.name) : undefined}
-            onSyncToAgent={status === "repo-only" ? () => onSyncToAgent?.(skill.name) : undefined}
-            onRestoreFromRepo={status === "different" ? () => onRestoreFromRepo?.(skill.name) : undefined}
+            onDelete={onDelete ? () => onDelete(skill.name) : undefined}
           />
-        );
-      })}
+        ))}
+      </div>
     </div>
-  );
+  )
 }

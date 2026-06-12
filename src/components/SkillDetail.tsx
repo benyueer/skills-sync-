@@ -124,56 +124,57 @@ export function SkillDetail({ skill, onBack, syncStatus, repoPath }: Props) {
 
   return (
     <div className={`flex flex-col h-full ${bgClass}`}>
-      <div className="flex items-center gap-2 p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className='flex items-center gap-2 p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900'>
         <button
           onClick={onBack}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          className='text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded p-1'
+          aria-label='返回'
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
           </svg>
         </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">{skill.name}</h2>
+        <div className='flex-1'>
+          <div className='flex items-center gap-2'>
+            <h2 className='font-mono text-sm font-bold text-gray-900 dark:text-gray-100'>{skill.name}</h2>
             {syncStatus && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-400">
+              <span className='text-[10px] px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 text-gray-650 dark:text-gray-400 font-mono'>
                 {STATUS_LABELS[syncStatus]}
               </span>
             )}
           </div>
           {skill.description && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{skill.description}</p>
+            <p className='text-xs text-gray-500 dark:text-gray-400 mt-0.5'>{skill.description}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {syncStatus === "different" && repoPath && (
+        <div className='flex items-center gap-2'>
+          {syncStatus === 'different' && repoPath && (
             <button
               onClick={() => setShowDiff((v) => !v)}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
+              className={`px-3 py-1 text-xs rounded font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 ${
                 showDiff
-                  ? "bg-yellow-500 text-white"
-                  : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                  ? 'bg-yellow-500 text-white'
+                  : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400'
               }`}
             >
-              {showDiff ? "Hide Diff" : "Show Diff"}
+              {showDiff ? '隐藏 Diff' : '查看 Diff'}
             </button>
           )}
           <button
             onClick={async () => {
               try {
-                if (syncStatus === "repo-only") {
-                  await invoke("open_repo_dir");
+                if (syncStatus === 'repo-only') {
+                  await invoke('open_repo_dir')
                 } else {
-                  await invoke("reveal_path", { path: skill.path });
+                  await invoke('reveal_path', { path: skill.path })
                 }
               } catch (e) {
-                alert(`Failed to open directory: ${e}`);
+                alert(`打开目录失败: ${e}`)
               }
             }}
-            className="px-3 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            className='px-3 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium'
           >
-            Open Dir
+            打开目录
           </button>
         </div>
       </div>
@@ -200,36 +201,36 @@ export function SkillDetail({ skill, onBack, syncStatus, repoPath }: Props) {
             </div>
           ) : (
             <pre
-              className="text-sm whitespace-pre-wrap font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg"
+              className='text-xs whitespace-pre-wrap font-mono text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-950 p-4 rounded-md border border-gray-150 dark:border-gray-800'
               dangerouslySetInnerHTML={{
                 __html: selectedPath
                   ? highlightCode(content, selectedPath)
-                  : content,
+                  : content
               }}
             />
           )}
         </div>
       </div>
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        {syncStatus === "repo-only" ? (
-          <span className="text-xs text-gray-400">
+      <div className='p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900'>
+        {syncStatus === 'repo-only' ? (
+          <span className='text-xs text-gray-400 font-mono'>
             Repo: {repoPath}
           </span>
         ) : (
-        <button
-          onClick={async () => {
-            try {
-              await invoke("reveal_path", { path: skill.path });
-            } catch (e) {
-              alert(`Failed to open path: ${e}`);
-            }
-          }}
-          className="text-xs text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:underline cursor-pointer"
-          aria-label="Reveal skill folder in file explorer"
-          title="Open in file explorer"
-        >
-          {skill.path}
-        </button>
+          <button
+            onClick={async () => {
+              try {
+                await invoke('reveal_path', { path: skill.path })
+              } catch (e) {
+                alert(`打开路径失败: ${e}`)
+              }
+            }}
+            className='text-xs font-mono text-gray-400 hover:text-emerald-500 dark:hover:text-emerald-400 hover:underline cursor-pointer focus:outline-none'
+            aria-label='在文件浏览器中打开技能目录'
+            title='在文件浏览器中打开'
+          >
+            {skill.path}
+          </button>
         )}
       </div>
     </div>
