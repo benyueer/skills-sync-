@@ -18,6 +18,9 @@
     "react-diff-viewer-continued": "^4.2.2",
     "react-dom": "^19.1.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp"]
+  },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
     "@tauri-apps/cli": "^2",
