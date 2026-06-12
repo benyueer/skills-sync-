@@ -25,3 +25,12 @@ dist-ssr
 
 # Claude Code
 .claude/
+
+# Agent & tooling
+.agents/
+.impeccable/
+.superpowers/
+.codegraph/
+
+# Misc
+src-tauri/~

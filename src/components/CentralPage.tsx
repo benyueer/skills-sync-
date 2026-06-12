@@ -66,7 +66,7 @@ export function CentralPage({
   toggleDark
 }: Props) {
   const isConfigured = !!config?.centralSkillsDir
-  const [editingDir, setEditingDir] = useState(!isConfigured)
+  const [editingDir, setEditingDir] = useState(false)
   const [dirPath, setDirPath] = useState(config?.centralSkillsDir ?? '')
   const [savingDir, setSavingDir] = useState(false)
   
@@ -327,7 +327,7 @@ export function CentralPage({
   return (
     <div className='flex flex-col h-full bg-gray-50 dark:bg-[#030712] overflow-hidden'>
       {/* 统一紧凑的顶部 Header */}
-      <header className='px-4 py-2.5 border-b border-gray-200 dark:border-[#1f2937] bg-white dark:bg-[#0b0f19] flex items-center justify-between shrink-0 select-none'>
+      <header data-tauri-drag-region className='px-4 pt-7 pb-2.5 border-b border-gray-200/50 dark:border-[#1f2937]/50 bg-transparent flex items-center justify-between shrink-0 select-none'>
         <div className='flex items-center gap-4 min-w-0'>
           <div className='flex items-center gap-2'>
             <h1 className='text-sm font-bold tracking-tight text-gray-900 dark:text-[#f9fafb] uppercase font-mono'>
