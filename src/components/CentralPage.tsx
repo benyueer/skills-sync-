@@ -84,6 +84,7 @@ export function CentralPage({
 
   // ── 错误与状态 ──
   const [actionError, setActionError] = useState<string | null>(null)
+  const [simpleMode, setSimpleMode] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const { distribution, refresh: refreshDist, loading: loadingDist } = useSkillsDistributionStatus()
 
@@ -431,6 +432,16 @@ export function CentralPage({
               >
                 刷新
               </button>
+              <button
+                onClick={() => setSimpleMode(!simpleMode)}
+                className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+                  simpleMode
+                    ? 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                    : 'border-gray-200 dark:border-[#1f2937] bg-white dark:bg-[#0b0f19] hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {simpleMode ? '简约 ✓' : '简约'}
+              </button>
             </>
           )}
           <div className='w-[1px] h-4 bg-gray-200 dark:bg-[#1f2937]' />
@@ -567,8 +578,10 @@ export function CentralPage({
               <table className='w-full border-collapse text-left text-sm text-gray-900 dark:text-[#f9fafb]'>
                 <thead className='sticky top-0 z-10 border-b border-gray-100 dark:border-[#1f2937] shadow-[0_1px_0_0_rgba(0,0,0,0.03)] dark:shadow-[0_1px_0_0_rgba(31,41,55,1)] text-xs uppercase font-semibold text-gray-500 dark:text-gray-400'>
                   <tr>
-                    <th scope='col' className='px-4 py-3 font-semibold bg-gray-50 dark:bg-[#0b0f19] w-1/4'>技能标识名 (点击详情)</th>
-                    <th scope='col' className='px-4 py-3 font-semibold bg-gray-50 dark:bg-[#0b0f19] w-1/3'>技能描述</th>
+                    <th scope='col' className={`px-4 py-3 font-semibold bg-gray-50 dark:bg-[#0b0f19] ${simpleMode ? 'w-2/5' : 'w-1/4'}`}>技能标识名 (点击详情)</th>
+                    {!simpleMode && (
+                      <th scope='col' className='px-4 py-3 font-semibold bg-gray-50 dark:bg-[#0b0f19] w-1/3'>技能描述</th>
+                    )}
                     {AGENTS.map((agent) => (
                       <th key={agent.id} scope='col' className='px-2 py-3 text-center font-semibold bg-gray-50 dark:bg-[#0b0f19]'>
                         <div
@@ -594,22 +607,26 @@ export function CentralPage({
                           >
                             {skill.name}
                           </button>
-                          <div className='flex items-center gap-1.5 mt-1'>
-                            {skill.hasScripts && (
-                              <span className='text-[10px] px-1.5 py-0.5 font-mono rounded bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 shrink-0'>
-                                scripts
-                              </span>
-                            )}
-                            {skill.hasReferences && (
-                              <span className='text-[10px] px-1.5 py-0.5 font-mono rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 shrink-0'>
-                                refs
-                              </span>
-                            )}
-                          </div>
+                          {!simpleMode && (
+                            <div className='flex items-center gap-1.5 mt-1'>
+                              {skill.hasScripts && (
+                                <span className='text-[10px] px-1.5 py-0.5 font-mono rounded bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 shrink-0'>
+                                  scripts
+                                </span>
+                              )}
+                              {skill.hasReferences && (
+                                <span className='text-[10px] px-1.5 py-0.5 font-mono rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 shrink-0'>
+                                  refs
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
-                        <td className='px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 font-normal leading-relaxed break-words max-w-xs'>
-                          {skill.description || '暂无描述。'}
-                        </td>
+                        {!simpleMode && (
+                          <td className='px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 font-normal leading-relaxed break-words max-w-xs'>
+                            {skill.description || '暂无描述。'}
+                          </td>
+                        )}
                         {AGENTS.map((agent) => {
                           const status = dist[agent.id] || 'unlinked'
                           return (
@@ -632,12 +649,22 @@ export function CentralPage({
                                     </button>
                                   </div>
                                 ) : (
-                                  <input
-                                    type='checkbox'
-                                    checked={status === 'linked'}
-                                    onChange={() => handleToggleLink(skill.name, agent.id, status)}
-                                    className='w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500 dark:focus:ring-emerald-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer accent-emerald-500'
-                                  />
+                                  <button
+                                    onClick={() => handleToggleLink(skill.name, agent.id, status)}
+                                    className={`group relative inline-flex h-5 w-9 items-center rounded-sm transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${
+                                      status === 'linked' ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+                                    }`}
+                                    title={status === 'linked' ? '点击卸载' : '点击挂载'}
+                                  >
+                                    <span
+                                      className={`inline-block h-3.5 w-3.5 rounded-[2px] bg-white shadow-sm transition-transform duration-200 ease-in-out ${
+                                        status === 'linked' ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                                      }`}
+                                    />
+                                    {status === 'linked' && (
+                                      <span className='absolute inset-0 rounded-sm shadow-[0_0_6px_rgba(16,185,129,0.35)] -z-10' />
+                                    )}
+                                  </button>
                                 )}
                               </div>
                             </td>
