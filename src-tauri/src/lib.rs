@@ -57,6 +57,16 @@ pub fn run() {
             commands::send_command_input,
             commands::kill_interactive_command,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                #[cfg(target_os = "windows")]
+                {
+                    if let Err(e) = commands::cleanup_copied_skills_on_exit() {
+                        eprintln!("Failed to cleanup copied skills on exit: {}", e);
+                    }
+                }
+            }
+        });
 }

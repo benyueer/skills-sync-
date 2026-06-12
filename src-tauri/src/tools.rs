@@ -58,7 +58,7 @@ impl Tool {
             #[cfg(not(target_os = "windows"))]
             Tool::OpenCode => home.join(".config").join("opencode").join("skills"),
             Tool::Codex => home.join(".agents").join("skills"),
-            Tool::Antigravity => home.join(".antigravity").join("skills"),
+            Tool::Antigravity => home.join(".gemini").join("config").join("skills"),
             Tool::Hermes => home.join(".hermes").join("skills"),
             Tool::Central => home.join(".skills"),
         }

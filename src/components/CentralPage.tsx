@@ -45,7 +45,7 @@ const AGENTS: {
   {
     id: 'antigravity',
     label: 'Antigravity',
-    defaultDir: '~/.antigravity/skills'
+    defaultDir: '~/.gemini/config/skills'
   },
   {
     id: 'hermes',

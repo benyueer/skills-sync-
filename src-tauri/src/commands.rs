@@ -70,12 +70,6 @@ fn discover_central_skills() -> Vec<Skill> {
         }
     }
 
-    for (_, custom_path) in &cfg.custom_skills_dirs {
-        if !custom_path.is_empty() {
-            search_dirs.push(expand_tilde(custom_path));
-        }
-    }
-
     let mut skills_map: HashMap<String, Skill> = HashMap::new();
 
     for dir in search_dirs {
@@ -125,12 +119,6 @@ fn find_skill_physical_path(skill_name: &str) -> Option<std::path::PathBuf> {
     for path in hidden_dirs {
         if path.exists() && path.is_dir() {
             search_dirs.push(path);
-        }
-    }
-
-    for (_, custom_path) in &cfg.custom_skills_dirs {
-        if !custom_path.is_empty() {
-            search_dirs.push(expand_tilde(custom_path));
         }
     }
 
@@ -620,7 +608,14 @@ pub fn get_skills_distribution_status() -> Result<HashMap<String, HashMap<String
                                 Err(_) => "linked".to_string(), // broken symlink is still a link we manage
                             }
                         } else {
-                            "conflict".to_string() // regular directory exists
+                            #[cfg(target_os = "windows")]
+                            {
+                                "linked".to_string()
+                            }
+                            #[cfg(not(target_os = "windows"))]
+                            {
+                                "conflict".to_string() // regular directory exists
+                            }
                         }
                     }
                     Err(_) => "unlinked".to_string(),
@@ -660,11 +655,21 @@ pub fn link_skill_to_agent(tool_id: String, skill_name: String) -> Result<(), St
         if meta.file_type().is_symlink() {
             remove_symlink_or_junction(&link_path)?;
         } else {
-            return Err("Conflict: A regular folder with this skill name already exists on Agent side".to_string());
+            #[cfg(not(target_os = "windows"))]
+            {
+                return Err("Conflict: A regular folder with this skill name already exists on Agent side".to_string());
+            }
         }
     }
 
-    create_symlink(&central_skill_path, &link_path)?;
+    #[cfg(target_os = "windows")]
+    {
+        crate::sync::copy_dir_recursive(&central_skill_path, &link_path)?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        create_symlink(&central_skill_path, &link_path)?;
+    }
     Ok(())
 }
 
@@ -678,7 +683,18 @@ pub fn unlink_skill_from_agent(tool_id: String, skill_name: String) -> Result<()
     if meta.file_type().is_symlink() {
         remove_symlink_or_junction(&link_path)?;
     } else {
-        return Err("Cannot unlink: This is a regular folder, not a managed link".to_string());
+        #[cfg(target_os = "windows")]
+        {
+            if link_path.is_dir() {
+                std::fs::remove_dir_all(&link_path).map_err(|e| format!("Failed to delete copied directory: {}", e))?;
+            } else {
+                std::fs::remove_file(&link_path).map_err(|e| e.to_string())?;
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            return Err("Cannot unlink: This is a regular folder, not a managed link".to_string());
+        }
     }
     Ok(())
 }
@@ -735,16 +751,22 @@ pub fn delete_central_skill(skill_name: String) -> Result<(), String> {
     // First delete the actual skill folder
     std::fs::remove_dir_all(&skill_path).map_err(|e| e.to_string())?;
 
-    // Secondly, clean up broken links in all agent directories to prevent dangling files
+    // Secondly, clean up broken links/copied directories in all agent directories to prevent dangling files
     let tools = Tool::all();
     for tool in tools {
         let agent_dir = resolve_skills_dir(tool);
         let link_path = agent_dir.join(&skill_name);
         
-        // Use symlink_metadata to catch broken links
         if let Ok(meta) = std::fs::symlink_metadata(&link_path) {
             if meta.file_type().is_symlink() {
                 let _ = remove_symlink_or_junction(&link_path);
+            } else {
+                #[cfg(target_os = "windows")]
+                {
+                    if link_path.is_dir() {
+                        let _ = std::fs::remove_dir_all(&link_path);
+                    }
+                }
             }
         }
     }
@@ -781,7 +803,22 @@ pub fn unlink_all_skills_from_agent(tool_id: String) -> Result<(), String> {
             let path = entry.path();
             if path.is_dir() {
                 if let Ok(meta) = std::fs::symlink_metadata(&path) {
-                    if meta.file_type().is_symlink() {
+                    let is_link = meta.file_type().is_symlink();
+                    let should_unlink = if is_link {
+                        true
+                    } else {
+                        #[cfg(target_os = "windows")]
+                        {
+                            let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                            find_skill_physical_path(&name).is_some()
+                        }
+                        #[cfg(not(target_os = "windows"))]
+                        {
+                            false
+                        }
+                    };
+
+                    if should_unlink {
                         let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
                         let _ = unlink_skill_from_agent(tool_id.clone(), name);
                     }
@@ -825,10 +862,11 @@ fn remove_symlink_or_junction(path: &Path) -> Result<(), String> {
     if meta.file_type().is_symlink() {
         #[cfg(target_os = "windows")]
         {
-            if meta.is_dir() {
-                std::fs::remove_dir(path).map_err(|e| e.to_string())?;
-            } else {
-                std::fs::remove_file(path).map_err(|e| e.to_string())?;
+            // 在 Windows 上，对于重解析点（Junction 或 Symlink），is_dir() 判定可能不准，
+            // 导致误用 remove_file 从而引发“拒绝访问 (os error 5)”错误。
+            // 故在此采用 fallback 机制：优先尝试作为目录链接删除，失败则作为文件链接删除。
+            if std::fs::remove_dir(path).is_err() {
+                std::fs::remove_file(path).map_err(|e| format!("Failed to delete symlink/junction: {}", e))?;
             }
         }
         #[cfg(not(target_os = "windows"))]
@@ -975,6 +1013,40 @@ pub fn kill_interactive_command() -> Result<(), String> {
     let mut proc = ACTIVE_PROCESS.lock().unwrap();
     if let Some(mut child) = proc.take() {
         let _ = child.kill();
+    }
+    Ok(())
+}
+
+pub fn cleanup_copied_skills_on_exit() -> Result<(), String> {
+    let cfg = config::load();
+    if cfg.central_skills_dir.is_empty() {
+        return Ok(());
+    }
+
+    let tools = Tool::all();
+    for tool in tools {
+        let agent_dir = resolve_skills_dir(tool);
+        if !agent_dir.exists() {
+            continue;
+        }
+
+        if let Ok(entries) = std::fs::read_dir(&agent_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    if find_skill_physical_path(&name).is_some() {
+                        if let Ok(meta) = std::fs::symlink_metadata(&path) {
+                            if meta.file_type().is_symlink() {
+                                let _ = remove_symlink_or_junction(&path);
+                            } else {
+                                let _ = std::fs::remove_dir_all(&path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     Ok(())
 }
